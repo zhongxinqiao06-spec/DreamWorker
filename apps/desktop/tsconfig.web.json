@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "types": ["vite/client"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "rootDir": "renderer/src",
+    "outDir": "../../out/desktop-web-types",
+    "tsBuildInfoFile": "../../out/desktop-web.tsbuildinfo"
+  },
+  "include": [
+    "renderer/src/**/*.ts",
+    "renderer/src/**/*.vue"
+  ]
+}

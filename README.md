@@ -1,5 +1,9 @@
 # DreamWorker
 
+## UI 文案规则
+
+UI 层所有面向用户可见的文字必须使用中文，包括导航、按钮、表单、占位、空态、加载态、错误态、审批提示、状态面板、toast、tooltip、窗口标题、`aria-label` 和 `title`。`DreamWorker`、版本号、PR 编号、协议名、schema 字段名等不可翻译标识可以保留原文，但必须搭配中文说明；不得新增纯英文占位文案。
+
 DreamWorker 是一个开放式 Agent 项目孵化台：把一个想法变成可验证方案、可执行蓝图、多 Agent 协作交付和发布增长计划。
 
 它不是又一个固定 DAG 的 workflow builder，也不是单纯的 Agent builder。DreamWorker 的核心是 Mission / Blueprint / Run 模式：用户提出目标，系统先生成可审阅、可修改、可追踪的任务蓝图，再在运行中根据证据、失败、反馈、预算和用户指令动态重排任务。

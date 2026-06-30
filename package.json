@@ -1,0 +1,23 @@
+{
+  "name": "dreamworker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "DreamWorker open AI project incubator operating system",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm --workspace @dreamworker/desktop run dev",
+    "typecheck": "npm --workspace @dreamworker/desktop run typecheck",
+    "test": "npm --workspace @dreamworker/desktop run test",
+    "go:test": "node -e \"const fs=require('node:fs');const cp=require('node:child_process');if(!fs.existsSync('engine/go.mod')){console.log('engine/go.mod not found; skipping go:test until PR-01-04');process.exit(0)}const r=cp.spawnSync('go',['test','./...'],{cwd:'engine',stdio:'inherit'});process.exit(r.status??1)\"",
+    "go:vet": "node -e \"const fs=require('node:fs');const cp=require('node:child_process');if(!fs.existsSync('engine/go.mod')){console.log('engine/go.mod not found; skipping go:vet until PR-01-04');process.exit(0)}const r=cp.spawnSync('go',['vet','./...'],{cwd:'engine',stdio:'inherit'});process.exit(r.status??1)\"",
+    "go:fmt": "node -e \"const fs=require('node:fs');const cp=require('node:child_process');if(!fs.existsSync('engine/go.mod')){console.log('engine/go.mod not found; skipping go:fmt until PR-01-04');process.exit(0)}const r=cp.spawnSync('gofmt',['-w','.'],{cwd:'engine',stdio:'inherit'});process.exit(r.status??1)\"",
+    "go:build": "node -e \"const fs=require('node:fs');const cp=require('node:child_process');if(!fs.existsSync('engine/go.mod')){console.log('engine/go.mod not found; skipping go:build until PR-01-04');process.exit(0)}const r=cp.spawnSync('go',['build','./...'],{cwd:'engine',stdio:'inherit'});process.exit(r.status??1)\"",
+    "build": "npm run typecheck && npm --workspace @dreamworker/desktop run build && npm run go:build"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  }
+}
