@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dreamworker.dev/capability/v0.1/schema.json",
+  "title": "CapabilityManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "protocol",
+    "inputSchema",
+    "outputSchema",
+    "permissions",
+    "risk",
+    "approval",
+    "runtime",
+    "observability"
+  ],
+  "properties": {
+    "apiVersion": { "const": "capability.dreamworker.dev/v1" },
+    "kind": {
+      "enum": [
+        "builtin",
+        "mcp_tool",
+        "a2a_agent",
+        "skill",
+        "openapi",
+        "browser",
+        "human",
+        "webhook",
+        "model"
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "version", "provider"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^cap_[A-Za-z0-9_-]+$" },
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "provider": { "type": "string", "minLength": 1 }
+      }
+    },
+    "protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": [
+            "builtin",
+            "mcp",
+            "a2a",
+            "skill",
+            "openapi",
+            "browser",
+            "human",
+            "webhook",
+            "model"
+          ]
+        },
+        "transport": { "type": "string" }
+      }
+    },
+    "inputSchema": { "type": "object" },
+    "outputSchema": { "type": "object" },
+    "permissions": { "type": "object" },
+    "risk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "reasons"],
+      "properties": {
+        "level": { "enum": ["low", "medium", "high", "critical"] },
+        "reasons": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "approval": { "type": "object" },
+    "runtime": { "type": "object" },
+    "observability": { "type": "object" }
+  }
+}

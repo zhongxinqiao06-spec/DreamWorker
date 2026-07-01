@@ -1,219 +1,118 @@
 # 07 Desktop Workspace UIUX
 
-| Field | Value |
-| --- | --- |
-| Status | Ready for Implementation |
-| Owner | Desktop/UI |
-| Priority | P0 |
-| DependsOn | 02, 03 mock events |
-| ExitGate | Incubator Workspace handles mission, run, approval, evidence and artifact states |
-| PR Range | PR-07-* |
-| Risk Level | High |
-| Last Review | 2026-06-30 |
+| Field       | Value                                                          |
+| ----------- | -------------------------------------------------------------- |
+| Status      | In Implementation                                              |
+| Owner       | Desktop/UI                                                     |
+| Priority    | P0                                                             |
+| DependsOn   | 01, 02, 03, 05, 06, 13                                         |
+| ExitGate    | 桌面工作台能通过 typed API 驱动资源、聊天、项目和 runtime 状态 |
+| PR Range    | PR-07-*                                                        |
+| Risk Level  | High                                                           |
+| Last Review | 2026-07-01                                                     |
 
 ## 目标
 
-实现 Incubator Workspace 的效率型桌面 UI：用户能创建 Mission、观察阶段、查看证据、编辑 Artifact、处理审批、steer 当前 run，并始终知道系统在做什么、为什么做、用了什么证据、花了多少成本、有什么风险、下一步是什么。
+把桌面端做成高级、清晰、可操作的 AI OS 工作台。默认入口是 Chat Workspace，但聊天必须展示 Agent、模型、项目、runtime、tool calls 等真实上下文；Resource Center 是所有模型、Agent、Skill、Tool、MCP 的统一控制台。
 
-## 非目标
+## UX 原则
 
-- 不做营销落地页。
-- 不做传统 workflow 画布。
-- 不把聊天窗口作为唯一产品形态。
-- 不让 Renderer 做重计算或直接访问本地能力。
+- 少描述性小字，多明确控件和状态。
+- 工作台第一屏直接可用，不做营销页。
+- 不用“概念大屏”替代用户工作流。
+- 控件要专业：选择器、开关、状态、列表、测试按钮、刷新按钮、执行阶段。
+- 文案中文清晰，术语保留原文时必须有上下文。
 
-## 输入文档
-
-- `.codex/plans/07-uiux-interaction-spec.md`
-- `.codex/rules/ui-ux.md`
-- `.codex/dev/02-specs-contracts.md`
-
-## 依赖阶段
-
-依赖 `01-repo-bootstrap.md` 和 `02-specs-contracts.md`。可用 mock event stream 与 Engine 并行开发。
-
-## 核心产物
-
-- Incubator Workspace。
-- Top Bar / Left Rail / Center Workspace / Right Inspector。
-- Idea Chat。
-- Incubator Board。
-- Blueprint Canvas placeholder。
-- Run Timeline。
-- Artifact Studio。
-- Evidence Drawer。
-- Approval Diff Card。
-- Cost / Risk Panel。
-- Command-K。
-- Steering Chips。
-- Next Best Action。
-- UI state machine。
-
-## 工程任务
-
-信息架构：
+## 信息架构
 
 ```text
-Top Bar: mission switcher, run status, cost/risk summary, command-k
-Left Rail: missions, stages, artifacts, capabilities
-Center Workspace: Idea Chat | Incubator Board | Blueprint Canvas | Run Timeline | Artifact Studio
-Right Inspector: Evidence Drawer | Approval Diff Card | Cost/Risk Panel | Next Best Action
+DreamWorker Desktop
+  Sidebar
+    - 聊天
+    - 项目
+    - 资源
+    - 探索
+    - 产品
+    - 开发
+    - 销售
+    - 设置
+    - 诊断
+  Top Bar
+    - 当前工作区
+    - Engine 状态
+    - Command-K
+  Main
+    - Chat Workspace
+    - Projects Workspace
+    - Resource Center
+    - Module Workspaces
+    - Settings
+    - Diagnostics
 ```
 
-交互状态：
+## Chat Workspace
 
-- empty
-- loading
-- streaming
-- waiting_approval
-- error
-- recoverable_error
-- completed
-- paused
-- cancelled
+必须实现：
 
-主要用户路径：
+- 会话列表。
+- Agent 切换。
+- 模型配置切换。
+- 项目绑定。
+- 消息历史加载。
+- 发送中状态。
+- runtime steps：PLAN、GRAPH、EXECUTE、OBSERVE、REPLAN。
+- tool call preview。
+- Agent runtime 摘要：planner、executor、memory、context window。
 
-1. Empty state 输入 idea。
-2. 创建 Mission。
-3. Run Timeline 开始 streaming。
-4. Incubator Board 展示 Discover / Validate / Shape。
-5. Evidence Drawer 查看证据。
-6. Approval Diff Card 处理高风险动作。
-7. Artifact Studio 查看和编辑 artifact。
-8. Stage Gate 做 continue / pivot / pause / kill / ask_user。
+## Resource Center
 
-高级交互：
+必须实现：
 
-- steer 当前 run。
-- approve / reject / edit / ask_user。
-- 查看 evidence。
-- 查看 artifact version。
-- 查看 cost / risk。
-- Command-K 执行全局命令。
-- Steering Chips 快速改变方向。
-- Next Best Action 提供下一步建议。
+- Provider 列表和编辑器。
+- Provider 类型：OpenAI、Anthropic、DeepSeek、GLM、Volcano、SiliconFlow、OpenAI Compatible、Ollama。
+- API Key password input，Renderer 只显示 maskedKey。
+- Test connection。
+- Auto fetch models。
+- Default model selection。
+- Capability checkboxes。
+- Model profiles。
+- Agent runtime config 摘要。
+- Skills、Tools、MCP 列表和启用状态。
 
-性能和安全：
+## typed API
 
-- Run Timeline 使用 virtualized list。
-- event stream batching。
-- 大 artifact lazy load。
-- Canvas lazy load。
-- markdown lazy rendering。
-- Renderer 不做重计算。
-- Renderer 不直接读文件系统和 secret。
-- Markdown 渲染必须 sanitizer。
-- 外部链接必须安全打开。
+- `models.listProviders/saveProvider/deleteProvider/testProvider/refreshProviderModels/listModelProfiles/saveModelProfile`
+- `agents.listAgents/getAgent/saveAgent/duplicateAgent/deleteAgent`
+- `skills.listSkills/getSkill/saveSkill/deleteSkill`
+- `tools.listTools/getTool/setToolEnabled`
+- `mcp.listServers/saveServer/deleteServer/testServer/refreshTools`
+- `projects.listProjects/createProject/getProject/updateProject/deleteProject/listProjectModules/getProjectModule/updateProjectModuleConfig`
+- `chat.listSessions/createSession/getMessages/sendMessage/deleteSession`
 
-UI 风格：
+## 安全边界
 
-- 高级、克制、效率型。
-- 参考 Linear / Arc / Notion / Raycast 的质感。
-- 信息密度清晰，不做装饰性重 UI。
+- Renderer 只调用 `window.dreamworker.*`。
+- Preload 只暴露白名单。
+- Main 只代理 Engine HTTP。
+- Go Engine 管理 workspace state、secret masking、project isolation。
+- UI 不存 localStorage，不存 raw key，不访问 Node/fs/process。
 
-UI state transition table：
+## 验收
 
-| From | Event | To |
-| --- | --- | --- |
-| empty | mission.created | loading |
-| loading | run.started | streaming |
-| streaming | approval.requested | waiting_approval |
-| waiting_approval | approval.resolved | streaming |
-| streaming | run.paused | paused |
-| streaming | run.completed | completed |
-| streaming | error.recoverable | recoverable_error |
-| streaming | error.fatal | error |
-| any | run.cancelled | cancelled |
+- 打开应用默认进入 Chat Workspace。
+- Chat 可以绑定 Agent、模型和项目，并显示 runtime steps/tool calls。
+- Resource Center 可以配置 Provider、测试连接、刷新模型、选择默认模型。
+- 所有数据来自 Engine typed API。
+- `npm run ci` 和 `npm run build` 通过。
 
-Accessibility checks：
+## PR 拆分
 
-- Keyboard access for Command-K, stage gate, approval actions and artifact tabs.
-- Focus trap for approval modal/card.
-- Visible focus ring on interactive controls.
-- Color is not sole indicator for risk/confidence.
-- Run Timeline events have accessible labels.
-
-Interaction QA checklist：
-
-- Empty state explains local-first workspace and first action.
-- Approval Diff Card shows before/after, data shared, risk, cost and reversibility.
-- Evidence Drawer links evidence to Hypothesis, Artifact and Decision.
-- Next Best Action is always visible when run is paused, failed or waiting_user.
-- Cost/Risk Panel updates from events, never from local estimation only.
-
-## 数据结构 / 接口 / schema 影响
-
-UI state：
-
-```ts
-type InteractionState =
-  | 'empty'
-  | 'loading'
-  | 'streaming'
-  | 'waiting_approval'
-  | 'error'
-  | 'recoverable_error'
-  | 'completed'
-  | 'paused'
-  | 'cancelled'
-```
-
-Renderer event reducer 输入只接受 versioned event envelope。
-
-## 测试要求
-
-- Renderer tests：
-  - event reducer。
-  - UI state。
-  - approval card interaction。
-  - artifact view。
-  - Command-K。
-  - Steering Chips。
-- Security smoke：
-  - Renderer cannot access Node。
-  - Markdown sanitizer works。
-  - external link safe open。
-- Performance smoke：
-  - Run Timeline 10k events virtualized render。
-  - large artifact lazy load。
-
-## 验收标准
-
-- 用户可从 empty state 创建 Mission。
-- UI 能展示 streaming、waiting_approval、paused、completed、error。
-- Approval Diff Card 支持 approve / reject / edit / ask_user。
-- Evidence Drawer 能按 Hypothesis 展示 evidence。
-- Artifact Studio 能展示 artifact 和 version placeholder。
-- Cost/Risk Panel 显示当前预算、风险和待审批项。
-- Renderer 只通过 typed API + event stream 获取状态。
-- UI state transition table is implemented in reducer tests.
-- Accessibility checks pass manual QA for keyboard-only flow.
-- Interaction QA checklist is covered by screenshots or component tests.
-
-## Codex PR 拆分建议
-
-- PR-07-01: 实现 Incubator Workspace 布局。
-- PR-07-02: 实现 event reducer 和 UI state machine。
-- PR-07-03: 实现 Idea Chat 和 empty/loading/streaming 状态。
-- PR-07-04: 实现 Incubator Board 和 Stage Gate 控件。
-- PR-07-05: 实现 Run Timeline virtualized list。
-- PR-07-06: 实现 Evidence Drawer 和 Cost/Risk Panel。
-- PR-07-07: 实现 Approval Diff Card。
-- PR-07-08: 实现 Artifact Studio lazy loading。
-- PR-07-09: 实现 Command-K、Steering Chips、Next Best Action。
-- PR-07-10: 添加 renderer/security/performance smoke tests。
-
-## 风险
-
-- UI 视图多，首版必须复用布局和状态组件。
-- Event reducer 复杂化会导致 UI 难调试。
-- Approval 信息不足会造成危险确认。
-- 过早追求 Canvas 完整能力会拖慢 MVP。
-
-## 暂不做
-
-- 不做完整图形化 Blueprint 编辑。
-- 不做多人协作 presence。
-- 不做 marketplace UI。
-- 不做真实发布操作。
+- PR-07-01：App Shell、主导航、顶部状态栏。
+- PR-07-02：typed preload API 和 Main proxy。
+- PR-07-03：Workspace store 和 Engine seed data。
+- PR-07-04：Chat Workspace。
+- PR-07-05：Resource Center。
+- PR-07-06：Projects Workspace。
+- PR-07-07：Module Workspaces。
+- PR-07-08：Settings/Diagnostics。
+- PR-07-09：Renderer/preload/Go/security tests。

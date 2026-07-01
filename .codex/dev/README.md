@@ -1,119 +1,71 @@
 # DreamWorker Dev Plan
 
-| Field | Value |
-| --- | --- |
-| Status | Active |
-| Owner | Tech Lead |
-| Priority | P0 |
-| DependsOn | `.codex/plans/*` |
-| ExitGate | Dev plan can drive independently verifiable PRs |
-| PR Range | PR-README-* |
-| Risk Level | Medium |
-| Last Review | 2026-06-30 |
+这里是 Codex 执行 DreamWorker 的工程入口。开发按 AI OS + Agent Runtime + 项目孵化系统推进，当前重点是把 Resource Center、Chat Workspace、Model Gateway、Context Manager、Skill/Tool/MCP Runtime 和 Windows packaging 继续夯实为工业级底座。
 
-## 目标
+## 当前完成度
 
-把 `.codex/plans/` 的产品、架构、孵化器域模型、Capability Bus、UIUX、安全、性能、eval 和开放接入规格，转成 Codex 可以按 PR 分阶段执行的工程开发计划。
+- Repo/Electron/Go bootstrap：已落地。
+- Specs/contracts：已落地 schema、fixtures、generation/check。
+- Engine foundation：已落地 Go daemon、runtime API、SQLite adapters、EventStore/ArtifactStore/CapabilityRegistry。
+- Resource Center：已落地 Provider/Profile/Agent/Skill/Tool/MCP 管理和 provider health/model discovery/stream verification。
+- Chat Runtime：已落地 SSE stream、cancel、retry、assistant attempt、context pack、tool preview/execution、audit summary、typed events。
+- Model Gateway：已落地 OpenAI Responses、OpenAI-compatible、Anthropic、Ollama streaming adapters。
+- Skill：已迁移到根目录 `.agent/skills/<name>/SKILL.md` 自动扫描，内置 `skillcreator`。
+- MCP：已落地 stdio 最小闭环；HTTP/SSE MCP 放后续阶段。
+- UX：已落地开屏 Canvas 粒子漩涡、聊天自动下滚、模型思考默认收起、Runtime Inspector。
+- Packaging：已落地 Windows unpacked package，包含 Engine exe 和 `.agent`。
 
-## 非目标
+## 入口顺序
 
-- 本目录不实现业务代码。
-- 不替代 `.codex/plans/` 的高层规格。
-- 不把 DreamWorker 降级为 workflow 工具、普通 Agent Builder 或聊天应用。
+1. `00-development-roadmap.md`：总路线和当前 P0 主线。
+2. `13-resource-chat-runtime-ux.md`：Resource/Chat/Runtime 当前主战场。
+3. `06-model-agent-runtime.md`：Model Gateway、Agent loop、Context、Tool runtime。
+4. `05-capability-policy-runtime.md`：Tool/MCP/Skill/Policy。
+5. `07-desktop-workspace-uiux.md`：桌面信息架构和 UX。
+6. `04-incubator-domain-runtime.md`：项目孵化四大模块。
 
-## 输入文档
+## 当前 P0 标准
 
-- `.codex/plans/*.md`
-- `.codex/rules/*.md`
-- `.codex/skills/*.md`
+- Resource Center 必须真实驱动 Engine 数据，不允许硬编码假状态。
+- Chat Workspace 必须走真实 streaming runtime，不允许 stub 假装成功。
+- Agent 必须有 runtimeConfig、planner、executor、memoryScope、enabled skills/tools/MCP。
+- Provider 必须支持 masked key、health、model discovery、streaming verification、capability/status。
+- Context 必须通过 Context Manager 构建，secret 不进入 prompt/event/log。
+- Tool/MCP 必须经过 policy gate；低风险可执行，高风险阻断或审批。
+- Retry/cancel/partial/failure 必须有清晰状态和可恢复路径。
 
-## 依赖阶段
+## 阶段索引
 
-本 README 是开发执行入口，无前置阶段。
+| Dev | 作用                         | 当前定位                 |
+| --- | ---------------------------- | ------------------------ |
+| 00  | 总路线                       | P0 入口                  |
+| 01  | Repo/Electron/Go bootstrap   | 已完成基础设施           |
+| 02  | Specs/contracts              | 已完成 v0.1 契约门禁     |
+| 03  | Engine foundation            | 已完成 daemon/API/store  |
+| 04  | Incubator domain runtime     | 下一阶段深化 artifact    |
+| 05  | Capability policy runtime    | 已有基础，继续补审批 UI  |
+| 06  | Model agent runtime          | 当前持续加固             |
+| 07  | Desktop workspace UIUX       | 当前持续打磨             |
+| 08  | E2E flow                     | 待扩展端到端孵化闭环     |
+| 09  | Open source accessibility    | SDK/example/conformance  |
+| 10  | Observability eval hardening | trace、eval、diagnostics |
+| 11  | Release packaging            | Windows dir 已验证       |
+| 12  | Risk register                | 持续维护                 |
+| 13  | Resource chat runtime UX     | 当前主战场               |
 
-## 核心产物
+## Definition of Done
 
-- 13 份阶段开发计划。
-- 每阶段可单独验收。
-- 每阶段包含 Codex PR 拆分建议。
+- schema、typed API、Go Engine、Renderer、tests 同步。
+- UI 通过 Engine 数据驱动，不用描述性小字掩盖缺失交互。
+- Renderer 不接触 secret、Engine token、Provider key 或 raw provider response。
+- 所有 high-risk Tool/MCP/Skill 经过 Policy/Approval。
+- 流式事件只走统一 `ChatStreamEvent`，Provider 原始事件不透传。
+- CI、build、安全 smoke 通过。
 
-## 工程任务
+## 绝不接受
 
-- 按阶段顺序执行：bootstrap -> specs -> engine -> runtime -> capability -> model/agent -> UI -> E2E -> open access -> hardening -> release -> risk.
-- 每个 PR 必须可运行测试或 smoke check。
-- 所有实现必须遵守 Renderer/Main/Go Engine 边界。
-
-PR 命名规范：
-
-- 格式：`PR-<phase>-<number>: <verb> <bounded outcome>`。
-- 示例：`PR-03-02: implement SQLite EventStore adapter`。
-- 一个 PR 只能关闭一个清晰工程结果，不混合无关 UI、Engine、文档和测试改动。
-- PR 描述必须引用输入文档、影响的 schema/API、测试命令和 rollback 方式。
-
-分支规范：
-
-- 默认前缀：`codex/`。
-- 阶段分支：`codex/dev-03-engine-foundation`。
-- PR 分支：`codex/pr-03-02-eventstore-adapter`。
-- 不在同一分支混做不同阶段的 P0 能力。
-
-Definition of Ready：
-
-- 输入文档已列明。
-- 依赖阶段已完成或有 mock/fake 替代。
-- schema/API 影响已标出。
-- 验收标准可测试。
-- 风险和回滚方式已写入 PR 描述。
-
-Definition of Done：
-
-- 实现满足阶段验收标准。
-- 对应测试或 smoke check 通过。
-- high-risk action 没有绕过 PolicyEngine。
-- 状态变化写入 EventStore。
-- PR 可回滚，且不会破坏上一阶段 demo path。
-- 文档、schema fixture、测试 fixture 与实现同步。
-
-Review checklist：
-
-- 架构边界：Renderer / Main / Go Engine 是否守边界。
-- 契约：event、schema、manifest、error 是否 versioned。
-- 安全：secret、文件系统、外部网络、执行代码是否受控。
-- 可观测性：trace_id 是否贯穿新增 run/task/tool/approval/artifact。
-- 测试：是否覆盖 unit、integration、contract、renderer、E2E 或 security smoke 中至少一种。
-- 回滚：是否能禁用 feature flag、撤销 migration 或恢复 backup。
-
-## 数据结构 / 接口 / schema 影响
-
-本目录只定义计划，不直接定义运行时 schema；schema 影响在 `02-specs-contracts.md` 开始落地。
-
-## 测试要求
-
-- 文档结构测试：每个阶段文档必须包含统一 12 个章节。
-- 计划一致性测试：阶段编号、依赖和 PR 建议不得互相冲突。
-- 拼写测试：项目名统一写作 `DreamWorker`。
-
-## 验收标准
-
-- `dev/` 与 `plans/`、`rules/`、`skills/` 平级。
-- 文件结构与路线图一致。
-- 每份阶段文档可直接交给 Codex 拆 PR 执行。
-
-## Codex PR 拆分建议
-
-- PR-README-01: 建立 `dev/` 总入口和阶段索引。
-- PR-README-02: 校验所有阶段文档都包含统一章节。
-- PR-README-03: 把 README 的阶段入口与文件结构保持同步。
-- PR-README-04: 增加 PR template、ADR、RFC、release checklist 和 phase exit review 模板。
-- PR-README-05: 建立 traceability matrix 维护规则。
-
-## 风险
-
-- 开发计划过细可能显得重，但它能减少后续 PR 模糊度。
-- 计划与 `plans/` 脱节会导致实现偏航。
-
-## 暂不做
-
-- 不创建应用代码。
-- 不创建 CI。
-- 不创建 SDK。
+- 用“MVP”当借口省略核心功能。
+- 用 prompt 拼接冒充 Agent Runtime。
+- 用配置页冒充 Model Provider System。
+- 用硬编码列表冒充 Skill/Tool/MCP 体系。
+- 用成功 toast 掩盖 provider/key/model/network/timeout/rate-limit 真实失败。

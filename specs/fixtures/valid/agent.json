@@ -1,0 +1,18 @@
+{
+  "schema_version": "0.1",
+  "id": "product_analyst",
+  "role": "Analyze users, needs and MVP scope.",
+  "input_schema": { "type": "object" },
+  "output_schema": { "type": "object" },
+  "allowed_capabilities": ["cap_model_generate_stub", "cap_artifact_write", "cap_human_input"],
+  "default_model_profile": "stub_reasoning_light",
+  "budget": { "max_tokens": 20000, "max_cost_usd": 0 },
+  "timeout": "120s",
+  "approval_policy": "on_risk",
+  "expected_artifacts": ["dream_brief.md", "mvp_scope.md"],
+  "prompt_ref": {
+    "prompt_id": "prm_product_analyst",
+    "prompt_version": "v1",
+    "agent_id": "product_analyst"
+  }
+}

@@ -1,196 +1,120 @@
 # 00 Development Roadmap
 
-| Field | Value |
-| --- | --- |
-| Status | Active |
-| Owner | Tech Lead |
-| Priority | P0 |
-| DependsOn | Product and architecture plans |
-| ExitGate | MVP release gates are explicit and traceable to PRs/tests |
-| PR Range | PR-00-* |
-| Risk Level | High |
-| Last Review | 2026-06-30 |
+| Field       | Value                                                                          |
+| ----------- | ------------------------------------------------------------------------------ |
+| Status      | Active                                                                         |
+| Owner       | Tech Lead                                                                      |
+| Priority    | P0                                                                             |
+| DependsOn   | `.codex/plans/11-roadmap.md`, `.codex/plans/12-ai-os-runtime-resource-chat.md` |
+| ExitGate    | 每个阶段都能映射到 PR、测试和 release gate                                     |
+| PR Range    | PR-00-*                                                                        |
+| Risk Level  | High                                                                           |
+| Last Review | 2026-07-01                                                                     |
 
 ## 目标
 
-定义 DreamWorker 从文档到 MVP、Alpha、Beta 的工程路线图，并先补齐当前 dev 计划缺口。DreamWorker 的目标是开放式 AI 项目孵化器操作系统：Idea -> Mission -> Hypothesis -> Evidence -> Experiment -> Decision Gate -> Blueprint -> Multi-Agent Run -> Artifact -> Launch -> Feedback -> Next Iteration。
+把开发路线从“孵化器 MVP”重构为“AI OS + Agent Runtime + 项目孵化系统”的工程执行计划。当前阶段优先完成 Resource Center、Chat Workspace、Provider System、Agent Runtime contract 和 Project Isolation。
 
-## 非目标
-
-- 不做普通 workflow 工具。
-- 不做普通 Agent Builder。
-- 不做只围绕聊天窗口的应用。
-- 不在 MVP 里实现完整 marketplace、团队协作或云端多租户。
+MVP 在本文里只表示第一条完整闭环，不允许用半成品 UI 或省 token 的浅实现冒充。
 
 ## 输入文档
 
-- `.codex/plans/00-product-positioning.md`
-- `.codex/plans/01-incubator-domain.md`
-- `.codex/plans/02-mvp-scope.md`
-- `.codex/plans/03-architecture-blueprint.md`
 - `.codex/plans/11-roadmap.md`
+- `.codex/plans/12-ai-os-runtime-resource-chat.md`
+- `.codex/plans/03-architecture-blueprint.md`
+- `.codex/plans/05-capability-bus.md`
+- `.codex/plans/07-uiux-interaction-spec.md`
+- `.codex/plans/09-security-policy.md`
+- `.codex/dev/13-resource-chat-runtime-ux.md`
 
-## 依赖阶段
-
-无前置阶段。本文件是所有开发阶段的总入口。
-
-## 核心产物
-
-- 当前计划缺口登记。
-- MVP / Alpha / Beta 目标。
-- 阶段依赖图。
-- 并行开发策略。
-- P0 / P1 / P2 优先级。
-- 统一验收门和发布门禁。
-
-## 工程任务
-
-当前 dev 计划缺口必须补齐：
-
-- specs-first 开发阶段：新增 `02-specs-contracts.md`，先定义 JSON Schema、typed API、event protocol。
-- typed contract / schema generation：明确 Go / TypeScript 类型生成策略。
-- API/event 版本策略：所有 schema、event、manifest versioned。
-- PR 粒度拆分：每份 dev 文档必须给出可单独验证的 PR。
-- 测试金字塔：Go unit、Go integration、contract、renderer、E2E、golden tasks、security smoke。
-- CI/CD 和 release packaging：新增 `11-release-packaging.md`。
-- 开源 SDK / examples / conformance tests：新增 `09-open-source-accessibility.md`。
-- UI 状态机和交互状态定义：升级 `07-desktop-workspace-uiux.md`。
-- 性能 SLO 测量方式：升级 `10-observability-eval-hardening.md`。
-- 错误码、日志、trace、diagnostics：在 specs、engine、observability 阶段落地。
-- data migration / artifact versioning：在 Engine Foundation 和 Release 阶段预留。
-- model gateway / schema normalization：新增 `06-model-agent-runtime.md`。
-- 安全 threat model 工程落地：在 Capability Policy、Security Smoke、Risk Register 中落地。
-- MVP end-to-end demo seed data：在 `08-mvp-e2e-flow.md` 落地。
-
-阶段依赖图：
+## 阶段依赖
 
 ```text
-01 repo bootstrap
+00 roadmap
+  -> 01 repo bootstrap
   -> 02 specs/contracts
   -> 03 engine foundation
-  -> 04 incubator domain runtime
   -> 05 capability policy runtime
   -> 06 model agent runtime
   -> 07 desktop workspace UIUX
-  -> 08 MVP E2E flow
+  -> 13 resource chat runtime UX
+  -> 04 incubator domain runtime
+  -> 08 project incubation E2E
   -> 10 observability eval hardening
   -> 11 release packaging
 
-09 open source accessibility starts after 02 and matures after 05.
+09 open source accessibility waits until capability boundaries are stable.
 12 risk register starts immediately and is updated every phase.
 ```
 
-并行开发策略：
+## P0 当前主线
 
-- `01` 和 `02` 可以小范围并行，但 Engine API 必须等 `02` contract 草案稳定。
-- `03` 和 `07` 可以并行，UI 使用 mock event stream。
-- `05` 和 `06` 可以并行，Agent runtime 只能依赖 CapabilityInvoker port。
-- `09` 在 MVP 中只做 specs、examples、conformance skeleton。
-- `10` 从 Phase 1 就接入 trace_id，最终作为发布门禁。
+1. Resource Center
+   - Provider CRUD、masked key、status、capabilities、auto fetch models。
+   - Model profiles、Agent、Skill、Tool、MCP 统一工作台。
+   - 不暴露 raw key，不在 Renderer 落状态。
 
-优先级：
+2. Chat Workspace
+   - 会话历史、Agent 选择、模型选择、项目绑定。
+   - 发送消息进入 Agent Runtime stub。
+   - 显示 runtime steps、tool call preview、trace_id、memory scope。
 
-- P0：repo bootstrap、specs/contracts、EventStore、domain runtime、Capability + Policy、MVP E2E、security smoke。
-- P1：UI 完整体验、Model Gateway、golden tasks、diagnostics export、release packaging。
-- P2：SDK、examples、conformance 扩展、A2A、Skill sandbox、marketplace 预留。
+3. Agent Runtime Contract
+   - Agent 必须包含 `runtimeConfig`、`planner`、`executor`、`memoryScope`。
+   - 所有复杂任务必须经过 `PLAN -> GRAPH -> EXECUTE -> OBSERVE -> REPLAN`。
 
-MVP 完成定义：
+4. Capability Boundary
+   - Skill = 思考策略。
+   - Tool = 执行能力。
+   - MCP = 外部系统能力。
+   - Policy/Approval 控制高风险动作。
 
-- 用户可创建 Mission。
-- Discover / Validate / Shape 三阶段可跑通。
-- 每阶段有 Hypothesis、Evidence、Decision。
-- 可以生成 Dream Brief、Research Pack、Blueprint、PRD、Launch Checklist。
-- Run Timeline 可观察 agent、task、tool call、approval、artifact event。
-- Capability Manifest、lifecycle、trust level 有最小实现。
-- PolicyEngine 可以阻止或审批高风险 capability。
-- trace_id 贯穿 run、task、tool call、approval、artifact。
-- 至少 5 个 golden tasks 可重复运行。
+## 里程碑
 
-发布门禁：
+| Milestone        | 目标                             | ExitGate                                | Dev   |
+| ---------------- | -------------------------------- | --------------------------------------- | ----- |
+| M0 Plan Lock     | 计划重构完成                     | 旧 roadmap/dev 不再冲突                 | 00    |
+| M1 Runtime Shell | Electron + Go Engine + typed API | Renderer 只访问 `window.dreamworker`    | 01/03 |
+| M2 Contracts     | Provider/Agent/Chat contract     | TS/Go 类型一致                          | 02/13 |
+| M3 Resource Core | 资源中心可读写                   | Provider/Agent/Skill/Tool/MCP 经 Engine | 07/13 |
+| M4 Chat Core     | 聊天接入 Runtime                 | execution steps + tool preview          | 06/13 |
+| M5 Project Core  | 四大模块接 Runtime               | projectId 隔离和 artifact 输出          | 04/08 |
+| M6 Hardening     | 可诊断可发布                     | CI/build/security/eval 通过             | 10/11 |
 
-- typecheck、go test、contract tests、renderer tests、E2E smoke、security smoke 全通过。
-- high-risk action 不得绕过 Approval。
-- secret 不得出现在 renderer event、日志、artifact metadata。
-- revoked capability 不能运行。
-- EventStore replay 能恢复 Mission 状态。
+## PR 拆分
 
-里程碑矩阵：
+- PR-00-01：重构 plans/dev roadmap 和入口索引。
+- PR-02-01：补 Provider、Agent、Chat runtime contract。
+- PR-06-01：实现 Agent Runtime stub 和 task graph event。
+- PR-07-01：整理桌面信息架构。
+- PR-13-01：实现 Provider status/capability/model discovery。
+- PR-13-02：实现 Chat history/agent/model/project binding。
+- PR-13-03：实现 execution steps/tool call preview UI。
+- PR-13-04：补齐 store/preload/main/go tests。
 
-| Milestone | 目标 | P0 ExitGate | 主要阶段 |
-| --- | --- | --- | --- |
-| M0 Planning | dev/specs 可执行 | 每阶段有 PR 和测试映射 | 00 |
-| M1 Bootstrap | 桌面和 Engine 可启动 | `runtime.ping` from Renderer via Main | 01 |
-| M2 Contracts | contract-first 基础 | versioned schema + generated types | 02 |
-| M3 Engine Core | 状态可回放 | EventStore + ArtifactStore + replay | 03 |
-| M4 Incubator Core | 三阶段可跑 | Discover/Validate/Shape + Decision Gate | 04 |
-| M5 Safe Capability | 外部能力受控 | policy/approval/revoke smoke pass | 05 |
-| M6 Agent MVP | Agent 输出可控 | normalized outputs + evaluator | 06 |
-| M7 Desktop MVP | 工作台可用 | UI state machine + Run Timeline | 07 |
-| M8 E2E Demo | MVP 闭环 | seed idea produces required artifacts | 08 |
-| M9 Hardening | 可发布 | SLO/security/eval gates pass | 10/11 |
+## 发布门禁
 
-关键路径：
+- `npm run lint`
+- `npm run format:check`
+- `npm run specs:check`
+- `npm run typecheck`
+- `npm test`
+- `npm run go:fmt:check`
+- `npm run go:test`
+- `npm run go:vet`
+- `npm run security:smoke`
+- `npm run build`
 
-- `01 -> 02 -> 03 -> 04 -> 08` 是 MVP 骨架关键路径。
-- `05 -> 06 -> 08` 是 Agent 受控执行关键路径。
-- `07 -> 08` 是用户体验关键路径。
-- `10 -> 11` 是发布关键路径。
+## 禁止事项
 
-并行开发边界：
+- 禁止只交 UI 截图。
+- 禁止跳过 typed API。
+- 禁止让 Renderer 直接访问外部模型或 MCP。
+- 禁止把 unknown Skill/MCP 默认为 trusted。
+- 禁止把项目、会话、artifact 跨 projectId 混用。
 
-- UI 可用 mock event stream 并行，但不能自定义未登记 event shape。
-- Model/Agent 可用 stub model 并行，但所有调用必须通过 ModelGateway 和 CapabilityInvoker。
-- Open access 可先写 examples 和 conformance skeleton，但不得承诺 stable SDK。
+## 验收
 
-技术债登记方式：
-
-- 每个技术债必须写入 `12-risk-register.md` 或阶段文档的风险区。
-- 技术债字段：`debt_id`、`introduced_by_pr`、`reason`、`payback_phase`、`owner`、`release_blocking`。
-- P0 技术债不能跨 MVP 发布；P1 技术债必须有 payback phase；P2 可进入 backlog。
-
-traceability matrix：
-
-| Source | Dev Phase | PR | Tests | Release Gate |
-| --- | --- | --- | --- | --- |
-| `plans/01-incubator-domain.md` | 04 | PR-04-* | domain reducer, event replay | Mission stages replay |
-| `plans/05-capability-bus.md` | 05 | PR-05-* | capability lifecycle, policy smoke | high-risk approval |
-| `plans/07-uiux-interaction-spec.md` | 07 | PR-07-* | renderer state, interaction QA | UI E2E smoke |
-| `plans/08-performance-observability.md` | 10 | PR-10-* | SLO smoke | SLO release gate |
-| `plans/10-eval-quality-system.md` | 10 | PR-10-06 | golden tasks | eval gate |
-
-## 数据结构 / 接口 / schema 影响
-
-本阶段不新增运行时 schema，但要求后续所有 schema、event、manifest、error 均有版本字段，并在 `02-specs-contracts.md` 定义。
-
-## 测试要求
-
-- 文档一致性检查：确认 dev 文件名和路线图一致。
-- 计划覆盖检查：每个用户要求都有对应阶段。
-- 发布门禁 checklist 要能映射到测试金字塔。
-
-## 验收标准
-
-- 当前 dev 计划缺口已明确登记。
-- 路线图包含 MVP、Alpha、Beta。
-- 阶段依赖、并行策略、优先级、MVP 完成定义、发布门禁完整。
-- 每个 P0 阶段都有明确 ExitGate。
-- 每条 P0 能力都能追踪到 PR、测试和 release gate。
-
-## Codex PR 拆分建议
-
-- PR-00-01: 补齐 dev 路线图和缺口登记。
-- PR-00-02: 建立阶段依赖图和 P0/P1/P2 优先级。
-- PR-00-03: 建立统一验收门和发布门禁 checklist。
-- PR-00-04: 将 roadmap 与 README 阶段索引同步。
-
-## 风险
-
-- 阶段太多可能导致执行者迷路，需要 README 做强入口。
-- 如果 P0/P1/P2 不严格执行，MVP 会滑向平台化。
-- 缺口登记不持续更新，会变成一次性文档。
-
-## 暂不做
-
-- 不创建代码。
-- 不创建 CI。
-- 不实现 schema。
+- 开发路线能从本文直接映射到 dev 01-13。
+- P0 主线先 Resource + Chat + Runtime，再进入项目孵化深水区。
+- 每个阶段有明确 PR、测试、风险和回滚边界。

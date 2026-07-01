@@ -1,137 +1,262 @@
 # DreamWorker
 
+DreamWorker 是一个本地优先的 AI OS + Agent Runtime + 项目孵化桌面工作台。当前实现已经从静态壳推进到可运行的 Electron + Vue + Go Engine 架构：资源中心负责模型、Agent、Skill、Tool、MCP；聊天工作区走真实流式模型闭环；项目模块负责资源绑定；探索、产品、开发、销售模块承载项目孵化流程。
+
 ## UI 文案规则
 
-UI 层所有面向用户可见的文字必须使用中文，包括导航、按钮、表单、占位、空态、加载态、错误态、审批提示、状态面板、toast、tooltip、窗口标题、`aria-label` 和 `title`。`DreamWorker`、版本号、PR 编号、协议名、schema 字段名等不可翻译标识可以保留原文，但必须搭配中文说明；不得新增纯英文占位文案。
+UI 层所有面向用户可见的文字必须使用中文，包括导航、按钮、表单、占位、空态、加载态、错误态、审批提示、状态面板、toast、tooltip、窗口标题、`aria-label` 和 `title`。`DreamWorker`、版本号、协议名、schema 字段名、Provider 名称等不可翻译标识可以保留原文，但必须搭配中文语境；不得新增纯英文占位文案。
 
-DreamWorker 是一个开放式 Agent 项目孵化台：把一个想法变成可验证方案、可执行蓝图、多 Agent 协作交付和发布增长计划。
+## 当前完成度
 
-它不是又一个固定 DAG 的 workflow builder，也不是单纯的 Agent builder。DreamWorker 的核心是 Mission / Blueprint / Run 模式：用户提出目标，系统先生成可审阅、可修改、可追踪的任务蓝图，再在运行中根据证据、失败、反馈、预算和用户指令动态重排任务。
+已落地：
 
-英文定位可以概括为：
+- Electron Main 启动 Go Engine sidecar，本地随机 token 鉴权，Renderer 永远拿不到 Engine URL、token、API Key。
+- Vue + Pinia Renderer 工作台：聊天、项目、资源、探索、产品、开发、销售、设置、诊断。
+- Typed Preload API：`window.dreamworker.*` 白名单接口，Renderer 不直接访问 Node、文件系统或 secret。
+- Go Engine Workspace API：Provider、Profile、Agent、Skill、Tool、MCP、Project、Chat Session、Runtime Diagnostic。
+- 真实流式模型闭环：Renderer -> Preload -> Main IPC/SSE proxy -> Go Engine -> ModelGateway -> Provider stream -> normalized events -> incremental UI -> final persisted message。
+- ModelGateway adapters：OpenAI Responses、OpenAI-compatible Chat Completions、DeepSeek/GLM/Volcano/SiliconFlow/Gemini/custom compatible、Anthropic Messages、Ollama Chat。
+- Provider 资源中心：保存密钥、脱敏展示、Test Connection、Refresh Models、Verify Streaming、health/model count/default model/streamingVerified。
+- Chat Runtime：assistant attempt、retry 不重复创建 user message、cancel 保留 partial、runtime inspector、usage/latency/finish reason、自动下滚、模型思考默认收起。
+- Context Manager：`ChatContextPack`、token budget、summary reuse、超预算压缩事件、deterministic fallback summary、secret redaction。
+- Skill/Tool Runtime：`.agent/skills/<name>/SKILL.md` 自动扫描，内置 `skillcreator`，低风险工具可执行，高风险工具 policy block，MCP stdio `initialize` / `tools/list` / `tools/call` 最小闭环。
+- SQLite adapters：EventStore、ArtifactStore、CapabilityRegistry 基础持久化。
+- Windows packaging：Go Engine exe 打包进 Electron `extraResources`，`.agent` 同步进入安装产物。
+- 工程门禁：lint、format、spec generation/check、typecheck、Vitest、Go test/vet/fmt check、security smoke、build。
 
-> DreamWorker turns any idea into an executable agent-powered launch plan.
+仍在推进：
+
+- HTTP/SSE MCP、远程 MCP 权限细化、工具审批 UI 完整闭环。
+- 项目孵化四大模块从配置态升级为真实 artifact 生成与评估闭环。
+- Installer、签名、自动更新、发布渠道。
+- Cloud/team workspace、同步和多人协作。
 
 ## 产品定位
 
-DreamWorker 面向独立开发者、AI 创业者和小型产品团队，解决从 idea 到 MVP 的早期混乱问题：
+DreamWorker 不是普通 workflow 工具，不是普通 Agent Builder，也不是单纯聊天应用。它把模型、Agent、Skill、工具、MCP、项目空间和项目闭环模块组织到一个开放式桌面工作台里，让用户从普通 Agent 聊天开始，逐步进入项目的探索、产品、开发和销售闭环。
 
-- 有想法，但不知道是否值得做。
-- 不会系统做需求、竞品、痛点和成本分析。
-- 不会把想法拆成 MVP、PRD、roadmap、issue 和发布计划。
-- 会用 AI，但缺少一个能组织多 Agent、工具和交付物的项目工作台。
-
-第一版聚焦一个清晰场景：
-
-输入一个产品想法，在 30 分钟内生成 Dream Brief、Research Pack、可执行 Blueprint、PRD、GitHub issues、落地页文案和发布计划。
-
-## 核心原则
-
-- **Evidence-first**：每个关键结论都要绑定证据、来源、置信度、假设和待验证实验，避免变成普通聊天式报告。
-- **Blueprint-first**：输出不是一堆静态文档，而是可执行、可修改、可回滚的项目蓝图。
-- **Open Agent Bus**：MCP、A2A、Skills、HTTP/OpenAPI、Browser、Human Task 都统一抽象成 capability。
-- **Human-in-command**：用户可以随时改目标、换 Agent、接工具、调预算、暂停、分支、回滚或把任务交给人。
-- **Idea-to-launch**：链路从想法、验证、规划、执行延伸到宣发、反馈和迭代。
-
-## MVP 能力
-
-首版只做最小闭环：
-
-- Idea Intake：把用户的一句话想法结构化成 Dream Brief。
-- Research Pack：生成需求、用户、竞品、痛点、商业模式、MVP 范围和成本分析。
-- Blueprint Generator：生成产品模块、页面结构、数据模型、API、Agent 分工、审批点和交付物清单。
-- Agent Runtime：轻量调度内置 Agent，先保证过程可见、结果可追踪。
-- Capability Registry：把内置工具、MCP、Skill、API、外部 Agent 和人工任务注册为统一能力。
-- Artifact Hub：保存 PRD、roadmap、issue、schema、文案、发布 checklist 等交付物。
-- Run Console：展示任务进度、工具调用、证据链、失败原因、成本和审批请求。
-- Human Approval：对写文件、发外部请求、发布内容、调用付费 API、执行代码等高风险动作要求确认。
-
-首版暂不做复杂 marketplace、团队权限、企业私有部署和全量 Agent 生态接入。这些能力进入后续阶段。
-
-## 技术主线
-
-DreamWorker 采用 Electron 桌面工作台 + Go 本地 Agent 引擎：
+项目孵化链路：
 
 ```text
-DreamWorker Desktop
-  |-- Electron Workspace
-  |   |-- Idea Chat
-  |   |-- Blueprint Canvas
-  |   |-- Agent Run Console
-  |   |-- Capability Panel
-  |   |-- Artifact Hub
-  |   `-- Approval Center
-  |
-  `-- Go Agent Kernel
-      |-- Engine API
-      |-- Event Bus / AG-UI Adapter
-      |-- Project Event Store
-      |-- Blueprint Compiler
-      |-- Orchestrator
-      |-- Multi-Agent Runtime
-      |-- Capability Registry
-      |-- MCP Gateway
-      |-- A2A Gateway
-      |-- Skill Runner
-      |-- Model Gateway
-      |-- Artifact Store
-      |-- Memory / Search
-      |-- Policy / Approval
-      |-- Sandbox
-      |-- Cost Meter
-      `-- Observability / Eval
+Idea
+-> Mission
+-> Hypothesis
+-> Evidence
+-> Experiment
+-> Decision Gate
+-> Blueprint
+-> Multi-Agent Run
+-> Artifact
+-> Launch
+-> Feedback
+-> Next Iteration
+```
+
+英文定位：
+
+> DreamWorker turns any idea into an executable agent-powered launch plan.
+
+## 架构
+
+```text
+Electron Desktop
+  |-- Renderer: Vue / Pinia / Canvas UX，只负责界面状态和交互
+  |-- Preload: typed window.dreamworker API，只做安全桥接
+  `-- Main: 窗口生命周期、Go Engine daemon、IPC/SSE proxy、本地 token
+
+Go Engine
+  |-- Runtime API: HTTP routes, SSE, cancel registry
+  |-- Workspace Store: providers, profiles, agents, skills, tools, MCP, projects, chat
+  |-- Chat Runtime: context pack, model stream, tool loop, audit summary
+  |-- Model Gateway: OpenAI, compatible, Anthropic, Ollama adapters
+  |-- Context Manager: budget, compaction, summaries, secret redaction
+  |-- Capability Runtime: built-in tools, MCP stdio, policy gates
+  |-- SQLite Adapters: events, artifacts, capability registry
+  |-- Domain Contracts: versioned errors, events, artifacts, policies
+  `-- Security / Diagnostics / Eval foundations
 ```
 
 关键边界：
 
-- Electron Renderer 只负责 UI、交互和运行状态镜像，不直接访问密钥、文件系统、Git、终端、SQLite 或 Go 进程。
-- Electron Main 负责桌面生命周期、本地权限入口、Go 引擎启动、系统对话框、secrets broker 和 typed IPC。
-- Go Engine 是 DreamWorker 的 Agent Kernel，负责蓝图编译、任务图、Agent 调度、能力路由、审批、沙箱、事件持久化和审计。
-- Capability Registry 是统一抽象层，禁止在业务逻辑中写死 `callGithub`、`callNotion`、`callMCP` 这类点对点调用。
-- Policy Engine 是安全边界，默认最小权限，高风险动作必须审批和记录。
+- Renderer 不直接访问 Node、Go、SQLite、文件系统、secrets。
+- Main 只代理 typed API 和本地流，不写业务逻辑。
+- Go Engine 必须能独立运行，未来支持 desktop local daemon、CLI、cloud server、team workspace 和第三方集成。
+- Provider 原始事件不透传 UI；Engine 只发 DreamWorker typed stream events。
+- token delta 不进入 EventStore；只持久化 final message、usage、tool calls、runtime steps 和 audit summary。
+- 所有 secret、masked secret、MCP env、provider raw error body 不允许进入 prompt、event、message、log。
+- 所有高风险 Tool/MCP/Skill 必须经过 Policy/Approval。
+- 所有 schema、event、manifest 必须 versioned。
 
-## 协议兼容
+## 桌面信息架构
 
-DreamWorker 的扩展策略不是 Go in-process plugin，而是进程外、协议化接入：
+```text
+DreamWorker Desktop
+  |-- 聊天
+  |   |-- Agent 对话
+  |   |-- 会话列表
+  |   |-- Agent / 模型 / 项目绑定
+  |   `-- Runtime Inspector
+  |
+  |-- 项目
+  |   |-- 项目列表 / 创建项目
+  |   |-- 项目基础信息
+  |   |-- 默认模型配置
+  |   |-- 项目级 Agent / Skill / Tool / MCP 绑定
+  |   `-- 删除项目
+  |
+  |-- 资源
+  |   |-- 模型服务商
+  |   |-- 模型配置
+  |   |-- Agent
+  |   |-- Skill
+  |   |-- Tool
+  |   `-- MCP
+  |
+  |-- 探索
+  |-- 产品
+  |-- 开发
+  |-- 销售
+  |-- 设置
+  `-- 诊断
+```
 
-- MCP：工具、数据源、文件、数据库、GitHub、Notion、Browser、企业系统。
-- A2A：外部 Agent 发现、协作、状态回传和 artifact 交换。
-- AG-UI-like Event Stream：Go Engine 与 Electron UI 的实时状态、工具调用、审批和用户 steering。
-- Skill Package：说明文档、脚本、资源和权限声明组成的可审计能力包。
-- HTTP/OpenAPI：传统 SaaS 或内部服务转成 capability。
-- Browser Sandbox：处理没有 API 的网页任务。
-- Human Task：把人类协作也作为 capability。
+项目不是四大闭环模块的容器，只负责新增、修改、删除和基础资源绑定。探索、产品、开发、销售是左侧一级主模块，每个主模块用子模块卡片承载可配置能力组合。
 
-后续可以让 DreamWorker 同时作为 MCP Client、MCP Server、A2A Client 和 A2A Server，成为其他 Agent 平台可调用的项目操作系统节点。
+## Chat Runtime
 
-## 路线
+```text
+validate session
+-> create/reuse user message
+-> create assistant attempt
+-> emit started
+-> build ChatContextPack
+-> stream provider tokens
+-> capture reasoning/tool deltas
+-> policy check low/high risk tools
+-> optionally execute low-risk tool
+-> persist assistant final/partial result
+-> emit completed/failed/cancelled
+```
 
-- Phase 0：产品定义。完成用户访谈、样例 idea 测试、Dream Brief 模板、Blueprint schema 和内置 Agent 定义。
-- Phase 1：MVP。完成 idea 输入、自动追问、研究包、蓝图生成、文档导出、轻量 Run Console 和基础 capability。
-- Phase 2：Alpha。加入 Capability Registry、MCP Client、审批中心、成本统计、失败重试、任务分支和 artifact versioning。
-- Phase 3：Beta。加入 A2A、Skill Runner、项目记忆、模板库、反馈 Agent、宣发 Agent 和支付。
-- Phase 4：商业化。加入团队空间、权限、审计、计费、私有部署和公共案例库。
-- Phase 5：平台化。开放 DreamWorker MCP/A2A Server、SDK、marketplace 和第三方能力生态。
+当前支持：
+
+- `started | step | context_compacted | reasoning_delta | token_delta | tool_call_delta | tool_started | tool_result | tool_blocked | skill_used | usage | completed | failed | cancelled`。
+- Main 到 Renderer 只发 typed IPC event；Renderer 不知道 Provider URL、Engine token 或 API Key。
+- Stop 后保留 partial assistant attempt。
+- Retry 使用同一个 user message 创建新的 assistant attempt。
+- 发送期间允许浏览其他 session，stream event 只更新所属 session。
+
+## Skill 与 Tool
+
+项目内技能源在 `.agent/skills/<skill-name>/SKILL.md`，兼容 Anthropic/Claude Code 风格：
+
+```text
+.agent/
+  |-- README.md
+  `-- skills/
+      |-- blueprint/SKILL.md
+      |-- competitor-map/SKILL.md
+      |-- evaluator/SKILL.md
+      |-- launch-plan/SKILL.md
+      |-- opportunity-scan/SKILL.md
+      |-- prd-draft/SKILL.md
+      `-- skillcreator/SKILL.md
+```
+
+Engine 启动时扫描 `.agent/skills`，把 frontmatter 和 markdown instructions 载入内存。后续 Skill 生成和安装也写入根目录 `.agent/skills`，不再走固定 seed 作为唯一来源。
+
+## Go Engine 启动与打包
+
+桌面端通过 Electron Main 启动本地 Go Engine HTTP daemon：
+
+1. Renderer 调用 `window.dreamworker.*`。
+2. Preload 把白名单方法转为 IPC。
+3. Main 生成本地随机 token，启动 Go Engine 子进程。
+4. Go Engine 执行 `serve --token <token>`，监听 `127.0.0.1:0`。
+5. Go Engine 输出 `engine.ready` JSON，Main 读取 `baseUrl`。
+6. Main 使用 `Authorization: Bearer <token>` 代理到 Engine。
+7. Renderer 永远拿不到端口、token、Go 进程句柄或 API Key。
+
+启动优先级：
+
+```text
+1. DREAMWORKER_ENGINE_PATH 指向的 engine 可执行文件。
+2. engine/bin/dreamworker-engine.exe。
+3. 开发态回退到 go run ./cmd/dreamworker-engine serve --token <token>。
+```
+
+## 快速开始
+
+要求：
+
+- Node.js 20+。
+- npm workspaces。
+- Go 1.22+，仅开发态 `go run` 或构建 engine 时需要。
+
+安装依赖：
+
+```powershell
+npm install
+```
+
+开发启动：
+
+```powershell
+npm run dev
+```
+
+构建 Go Engine exe：
+
+```powershell
+npm run go:build:exe
+```
+
+完整构建：
+
+```powershell
+npm run build
+```
+
+Windows unpacked package：
+
+```powershell
+npm run package:win
+```
+
+完整门禁：
+
+```powershell
+npm run ci
+```
+
+## 常用脚本
+
+- `npm run lint`：ESLint。
+- `npm run format:check`：Prettier 检查。
+- `npm run specs:check`：schema 生成产物和 fixtures 校验。
+- `npm run typecheck`：Vue/TS 类型检查。
+- `npm test`：desktop Vitest。
+- `npm run go:test`：Go tests。
+- `npm run go:vet`：Go vet。
+- `npm run security:smoke`：Renderer/Main/Preload 安全 smoke。
+- `npm run build`：类型、Electron build、Go build、engine exe。
+- `npm run package:win`：完整 Windows dir package。
 
 ## 仓库说明
 
-根目录是 DreamWorker 新项目的事实源。
-
-- `.codex/`：后续 Codex/Agent 开发的计划、规则和项目内 skill 记忆。
-- `code-q/`：只作为参考资产，可参考其中 Electron + Vue + Go sidecar、typed IPC、Agent runtime、MCP、skills 和文档组织风格；不要直接迁移、重命名或修改它来代表 DreamWorker。
+- `.agent/`：项目内 Skill 源，Engine 自动扫描。
+- `.codex/`：Codex/Agent 开发计划、规则和阶段记忆。
+- `apps/desktop/`：Electron + Vue + Pinia 桌面工作台。
+- `engine/`：Go Engine、runtime API、workspace store、model gateway、capability runtime。
+- `examples/`：后续 SDK、adapter、E2E 示例入口。
+- `scripts/`：工程脚本。
+- `specs/`：versioned JSON schemas、fixtures 和生成 contracts。
 
 ## 文档入口
 
+- [.agent/README.md](.agent/README.md)
 - [.codex/README.md](.codex/README.md)
-- [.codex/plans/00-product-positioning.md](.codex/plans/00-product-positioning.md)
-- [.codex/plans/01-incubator-domain.md](.codex/plans/01-incubator-domain.md)
-- [.codex/plans/02-mvp-scope.md](.codex/plans/02-mvp-scope.md)
-- [.codex/plans/03-architecture-blueprint.md](.codex/plans/03-architecture-blueprint.md)
-- [.codex/plans/04-engine-code-skeleton.md](.codex/plans/04-engine-code-skeleton.md)
-- [.codex/plans/05-capability-bus.md](.codex/plans/05-capability-bus.md)
-- [.codex/plans/06-open-source-accessibility.md](.codex/plans/06-open-source-accessibility.md)
-- [.codex/plans/07-uiux-interaction-spec.md](.codex/plans/07-uiux-interaction-spec.md)
-- [.codex/plans/08-performance-observability.md](.codex/plans/08-performance-observability.md)
-- [.codex/plans/09-security-policy.md](.codex/plans/09-security-policy.md)
-- [.codex/plans/10-eval-quality-system.md](.codex/plans/10-eval-quality-system.md)
-- [.codex/plans/11-roadmap.md](.codex/plans/11-roadmap.md)
+- [.codex/dev/README.md](.codex/dev/README.md)
+- [specs/README.md](specs/README.md)
+- [scripts/README.md](scripts/README.md)
+- [examples/README.md](examples/README.md)

@@ -1,0 +1,10 @@
+{
+  "schema_version": "0.1",
+  "approval_id": "apr_001",
+  "trace_id": "tr_001",
+  "capability_id": "cap_artifact_write",
+  "risk": "medium",
+  "status": "pending",
+  "reason": "写入项目产物需要审批。",
+  "diff_summary": "新增 research_pack.md"
+}

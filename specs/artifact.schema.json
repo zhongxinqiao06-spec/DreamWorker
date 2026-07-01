@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dreamworker.dev/artifact/v0.1/schema.json",
+  "title": "ArtifactMetadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_id", "mission_id", "kind", "title", "version", "uri"],
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "artifact_id": { "type": "string", "pattern": "^art_[A-Za-z0-9_-]+$" },
+    "mission_id": { "type": "string", "pattern": "^msn_[A-Za-z0-9_-]+$" },
+    "run_id": { "type": "string", "pattern": "^run_[A-Za-z0-9_-]+$" },
+    "kind": {
+      "enum": [
+        "dream_brief",
+        "research_pack",
+        "blueprint",
+        "prd",
+        "launch_checklist",
+        "eval_report",
+        "other"
+      ]
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "version": { "type": "integer", "minimum": 1 },
+    "uri": { "type": "string", "minLength": 1 },
+    "content_type": { "type": "string" }
+  }
+}

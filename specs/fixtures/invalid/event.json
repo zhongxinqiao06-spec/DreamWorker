@@ -1,0 +1,10 @@
+{
+  "event_id": "evt_001",
+  "schema_version": "0.1",
+  "trace_id": "tr_001",
+  "mission_id": "msn_001",
+  "actor": "orchestrator",
+  "timestamp": "not-a-date",
+  "type": "mission.created",
+  "payload": {}
+}

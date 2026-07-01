@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dreamworker.dev/policy/v0.1/schema.json",
+  "title": "PolicyDecision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "trace_id", "action", "result", "risk", "reason"],
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "id": { "type": "string", "pattern": "^pol_[A-Za-z0-9_-]+$" },
+    "trace_id": { "type": "string", "pattern": "^tr_[A-Za-z0-9_-]+$" },
+    "action": { "type": "string", "minLength": 1 },
+    "capability_id": { "type": "string", "pattern": "^cap_[A-Za-z0-9_-]+$" },
+    "result": { "enum": ["allow", "deny", "requires_approval"] },
+    "risk": { "enum": ["low", "medium", "high", "critical"] },
+    "reason": { "type": "string", "minLength": 1 }
+  }
+}

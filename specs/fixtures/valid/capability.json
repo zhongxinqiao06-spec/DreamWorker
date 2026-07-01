@@ -1,0 +1,35 @@
+{
+  "apiVersion": "capability.dreamworker.dev/v1",
+  "kind": "builtin",
+  "metadata": {
+    "id": "cap_artifact_write",
+    "name": "Artifact Write",
+    "version": "0.1.0",
+    "provider": "dreamworker"
+  },
+  "protocol": {
+    "type": "builtin"
+  },
+  "inputSchema": {
+    "type": "object"
+  },
+  "outputSchema": {
+    "type": "object"
+  },
+  "permissions": {
+    "filesystem": "project_only"
+  },
+  "risk": {
+    "level": "medium",
+    "reasons": ["file_write"]
+  },
+  "approval": {
+    "requiredWhen": ["file_write"]
+  },
+  "runtime": {
+    "timeoutMs": 60000
+  },
+  "observability": {
+    "metrics": ["latency_ms"]
+  }
+}

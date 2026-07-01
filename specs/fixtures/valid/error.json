@@ -1,0 +1,7 @@
+{
+  "code": "ENGINE_NOT_CONNECTED",
+  "message": "Go Engine 尚未连接，后续阶段会接入本地引擎。",
+  "recoverable": true,
+  "user_action": "等待引擎接入后重试。",
+  "trace_id": "tr_001"
+}

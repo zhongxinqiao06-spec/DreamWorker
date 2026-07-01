@@ -1,0 +1,14 @@
+{
+  "schema_version": "0.1",
+  "blueprint_id": "bp_001",
+  "mission_id": "msn_001",
+  "title": "AI 项目孵化器 MVP 蓝图",
+  "modules": [
+    {
+      "id": "idea_intake",
+      "name": "想法录入",
+      "goal": "把一句话想法转成 Mission。"
+    }
+  ],
+  "artifacts": ["art_research_pack"]
+}

@@ -1,0 +1,131 @@
+import { ipcMain } from 'electron'
+import { CHANNELS, type ChatStreamEvent, type RuntimePingResponse } from '../shared/dreamworker-api'
+import { createRuntimePingStubResponse } from './runtime-ping'
+
+export type RuntimePingProvider = () => Promise<RuntimePingResponse> | RuntimePingResponse
+
+export type EngineRequestProvider = <T>(
+  path: string,
+  init?: {
+    readonly method?: 'GET' | 'POST'
+    readonly body?: unknown
+  }
+) => Promise<T>
+
+export type EngineStreamProvider = (
+  path: string,
+  init: {
+    readonly body: unknown
+    readonly streamId: string
+  },
+  onEvent: (event: ChatStreamEvent) => void
+) => Promise<{ readonly streamId: string }>
+
+type EngineRoute = {
+  readonly channel: string
+  readonly path: string
+  readonly method: 'GET' | 'POST'
+}
+
+const ENGINE_ROUTES: readonly EngineRoute[] = [
+  { channel: CHANNELS.modelsListProviders, path: '/models/providers', method: 'GET' },
+  { channel: CHANNELS.modelsSaveProvider, path: '/models/providers/save', method: 'POST' },
+  { channel: CHANNELS.modelsDeleteProvider, path: '/models/providers/delete', method: 'POST' },
+  { channel: CHANNELS.modelsTestProvider, path: '/models/providers/test', method: 'POST' },
+  {
+    channel: CHANNELS.modelsRefreshProviderModels,
+    path: '/models/providers/refresh-models',
+    method: 'POST'
+  },
+  { channel: CHANNELS.modelsListProfiles, path: '/models/profiles', method: 'GET' },
+  { channel: CHANNELS.modelsSaveProfile, path: '/models/profiles/save', method: 'POST' },
+  { channel: CHANNELS.modelsDeleteProfile, path: '/models/profiles/delete', method: 'POST' },
+  { channel: CHANNELS.agentsList, path: '/agents', method: 'GET' },
+  { channel: CHANNELS.agentsGet, path: '/agents/get', method: 'POST' },
+  { channel: CHANNELS.agentsSave, path: '/agents/save', method: 'POST' },
+  { channel: CHANNELS.agentsDuplicate, path: '/agents/duplicate', method: 'POST' },
+  { channel: CHANNELS.agentsDelete, path: '/agents/delete', method: 'POST' },
+  { channel: CHANNELS.skillsList, path: '/skills', method: 'GET' },
+  { channel: CHANNELS.skillsGet, path: '/skills/get', method: 'POST' },
+  { channel: CHANNELS.skillsSave, path: '/skills/save', method: 'POST' },
+  { channel: CHANNELS.skillsDelete, path: '/skills/delete', method: 'POST' },
+  { channel: CHANNELS.toolsList, path: '/tools', method: 'GET' },
+  { channel: CHANNELS.toolsGet, path: '/tools/get', method: 'POST' },
+  { channel: CHANNELS.toolsSave, path: '/tools/save', method: 'POST' },
+  { channel: CHANNELS.toolsSetEnabled, path: '/tools/set-enabled', method: 'POST' },
+  { channel: CHANNELS.toolsDelete, path: '/tools/delete', method: 'POST' },
+  { channel: CHANNELS.mcpListServers, path: '/mcp/servers', method: 'GET' },
+  { channel: CHANNELS.mcpSaveServer, path: '/mcp/servers/save', method: 'POST' },
+  { channel: CHANNELS.mcpDeleteServer, path: '/mcp/servers/delete', method: 'POST' },
+  { channel: CHANNELS.mcpTestServer, path: '/mcp/servers/test', method: 'POST' },
+  { channel: CHANNELS.mcpRefreshTools, path: '/mcp/servers/refresh-tools', method: 'POST' },
+  { channel: CHANNELS.projectsList, path: '/projects', method: 'GET' },
+  { channel: CHANNELS.projectsCreate, path: '/projects/create', method: 'POST' },
+  { channel: CHANNELS.projectsGet, path: '/projects/get', method: 'POST' },
+  { channel: CHANNELS.projectsUpdate, path: '/projects/update', method: 'POST' },
+  { channel: CHANNELS.projectsDelete, path: '/projects/delete', method: 'POST' },
+  { channel: CHANNELS.projectsListModules, path: '/projects/modules', method: 'POST' },
+  { channel: CHANNELS.projectsGetModule, path: '/projects/modules/get', method: 'POST' },
+  {
+    channel: CHANNELS.projectsUpdateModuleConfig,
+    path: '/projects/modules/update-config',
+    method: 'POST'
+  },
+  { channel: CHANNELS.chatListSessions, path: '/chat/sessions', method: 'GET' },
+  { channel: CHANNELS.chatCreateSession, path: '/chat/sessions/create', method: 'POST' },
+  { channel: CHANNELS.chatUpdateSession, path: '/chat/sessions/update', method: 'POST' },
+  { channel: CHANNELS.chatGetMessages, path: '/chat/messages', method: 'POST' },
+  { channel: CHANNELS.chatSendMessage, path: '/chat/messages/send', method: 'POST' },
+  { channel: CHANNELS.chatDeleteSession, path: '/chat/sessions/delete', method: 'POST' }
+]
+
+export function registerRuntimeIpcHandlers(
+  runtimePingProvider: RuntimePingProvider = createRuntimePingStubResponse,
+  engineRequestProvider?: EngineRequestProvider,
+  engineStreamProvider?: EngineStreamProvider,
+  engineStreamCancelProvider?: (streamId: string) => void
+): void {
+  ipcMain.handle(CHANNELS.runtimePing, () => runtimePingProvider())
+
+  for (const route of ENGINE_ROUTES) {
+    ipcMain.handle(route.channel, (_event, payload: unknown) => {
+      if (!engineRequestProvider) {
+        throw new Error('Go Engine 尚未连接，无法读取工作台数据。')
+      }
+
+      if (route.method === 'GET') {
+        return engineRequestProvider(route.path, { method: 'GET' })
+      }
+
+      return engineRequestProvider(route.path, { method: 'POST', body: payload ?? {} })
+    })
+  }
+
+  ipcMain.handle(CHANNELS.chatStartStream, async (event, payload: unknown) => {
+    if (!engineStreamProvider || !isRecord(payload) || typeof payload.streamId !== 'string') {
+      throw new Error('Go Engine streaming is not available.')
+    }
+    const streamId = payload.streamId
+    return engineStreamProvider(
+      '/chat/messages/stream',
+      { body: payload, streamId },
+      (streamEvent) => {
+        event.sender.send(CHANNELS.chatStreamEvent, streamEvent)
+      }
+    )
+  })
+
+  ipcMain.handle(CHANNELS.chatCancelStream, (_event, payload: unknown) => {
+    if (!engineRequestProvider) {
+      throw new Error('Go Engine is not connected.')
+    }
+    if (isRecord(payload) && typeof payload.streamId === 'string') {
+      engineStreamCancelProvider?.(payload.streamId)
+    }
+    return engineRequestProvider('/chat/messages/cancel', { method: 'POST', body: payload ?? {} })
+  })
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}

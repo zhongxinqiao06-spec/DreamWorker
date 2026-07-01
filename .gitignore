@@ -5,7 +5,11 @@ release/
 coverage/
 .vite/
 .cache/
+.codex/tmp/
 *.log
+.env
+.env.local
+.env.*.local
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

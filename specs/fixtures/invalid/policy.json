@@ -1,0 +1,9 @@
+{
+  "schema_version": "0.1",
+  "id": "policy_001",
+  "trace_id": "tr_001",
+  "action": "invoke_capability",
+  "result": "maybe",
+  "risk": "medium",
+  "reason": "file_write"
+}

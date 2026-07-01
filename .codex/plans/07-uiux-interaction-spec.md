@@ -2,97 +2,127 @@
 
 ## 目标
 
-定义 DreamWorker Incubator Workspace 的交互规格，让用户在一个工作台里完成 idea 输入、孵化阶段推进、证据查看、蓝图编辑、运行观察、交付物编辑、审批和下一步行动。
+定义 DreamWorker 桌面端的产品信息架构：它首先是可配置、可扩展的 AI 工作台，其次才承载项目孵化器运行态。用户应先获得一个正常可用的 Agent 聊天工作台、资源配置中心和项目配置页，再通过左侧一级入口进入探索、产品、开发、销售闭环模块。
 
 ## 非目标
 
-- 不做营销式 landing page。
-- 不把聊天框作为唯一入口。
-- 不隐藏 Agent 行为、证据、成本和风险。
-- 不让用户只能旁观自动运行。
+- 不把首页设计成运行态演示大屏。
+- 不把 DreamWorker 做成传统 workflow builder。
+- 不把聊天窗口做成唯一产品能力。
+- 不在 Renderer 中保存密钥、项目数据或对话历史。
+- 不复制第三方产品代码、切图、资产或品牌样式。
 
 ## 核心对象
 
-- Incubator Workspace。
-- Left Rail。
-- Center Workspace。
-- Right Inspector。
-- Idea Chat。
-- Incubator Board。
-- Blueprint Canvas。
-- Run Timeline。
-- Artifact Studio。
-- Evidence Drawer。
-- Approval Diff Card。
-- Cost/Risk Panel。
-- Command-K。
-- Steering Chips。
-- Next Best Action。
+- App Shell：侧栏、顶部状态栏、命令面板、主工作区。
+- Chat Workspace：普通 Agent 对话、会话、Agent 摘要、项目上下文。
+- Resource Center：模型服务商、模型配置、Agent、Skill、工具、MCP。
+- Project Space：项目列表、创建项目、基础信息、项目级资源绑定、删除项目。
+- Module Workspaces：Explore、Product、Development、Sales 四个一级主模块。
+- Submodule Cards：每个主模块下的具体能力入口，以卡片展示状态、能力、产物和 next_best_action。
+- Settings：本地优先、中文界面、安全边界和密钥策略。
+- Diagnostics：runtime.ping、trace_id、Engine 状态、API 覆盖。
 
 ## 数据结构示例
 
 ```yaml
 workspace_state:
-  selected_mission: msn_001
-  active_stage: validate
-  center_view: incubator_board
-  right_inspector:
-    mode: evidence_drawer
-    target_id: hyp_001
-  next_best_action:
-    type: ask_user
-    label: "确认是否继续验证独立开发者细分人群"
-    risk: low
+  active_primary: chat
+  active_project_id: project_001
+  active_submodule_id: opportunity_radar
+  active_agent_id: agent_general_assistant
+  active_model_profile_id: profile_fast
+  runtime:
+    ping_status: ready
+    trace_id: tr_001
 ```
 
-Approval Diff Card：
+```yaml
+model_provider:
+  providerId: provider_deepseek
+  providerType: deepseek
+  displayName: DeepSeek 兼容服务
+  baseURL: https://api.deepseek.com
+  defaultModel: deepseek-v4-flash
+  availableModels:
+    - deepseek-v4-flash
+  enabled: true
+  hasApiKey: true
+  maskedKey: sk-b...4f3c
+```
 
 ```yaml
-approval_card:
-  id: appr_001
-  action: "create_github_issue_drafts"
-  before: null
-  after:
-    count: 12
-    repository: "user/project"
-  data_shared: ["issue title", "issue body"]
-  risk: medium
-  cost_estimate: 0
-  choices: ["approve", "reject", "edit", "ask_user"]
+project_module:
+  projectId: project_001
+  moduleId: explore
+  displayName: 探索模块
+  submodules:
+    - submoduleId: opportunity_radar
+      displayName: 机会雷达
+      status: ready
+      outputArtifacts:
+        - dream_brief.md
+        - hypotheses.yaml
+  defaultAgents:
+    - agent_opportunity_scout
+    - agent_competitor_analyst
+  enabledSkills:
+    - skill_opportunity_scan
+    - skill_competitor_map
+  outputArtifacts:
+    - dream_brief.md
+    - research_pack.md
+  nextBestAction: 先跑机会扫描，再补竞品和客群证据。
 ```
 
 ## 关键流程
 
-1. 用户在 Idea Chat 输入想法。
-2. Center Workspace 显示 Incubator Board，按六阶段展示进度。
-3. 用户点击某个 Hypothesis，Right Inspector 打开 Evidence Drawer。
-4. Run Timeline 展示 Agent、tool call、artifact 和 approval 事件。
-5. Blueprint Canvas 支持编辑任务、依赖、Agent 和 capability。
-6. Artifact Studio 编辑 PRD、roadmap、issues、copy。
-7. Cost/Risk Panel 常驻展示预算、风险和高风险待审批项。
-8. Command-K 支持快速创建任务、切换阶段、注册 capability、导出 artifact。
-9. Steering Chips 提供“加深竞品分析”“降低预算”“先做落地页”等快捷 steering。
-10. Next Best Action 明确下一步建议。
+1. 用户打开 DreamWorker，默认进入普通 Agent 聊天工作台。
+2. 用户在聊天里提出问题、输入想法或让 Agent 做轻量分析。
+3. 用户进入资源配置中心，配置模型服务商、模型配置、Agent、Skill、工具和 MCP。
+4. 用户进入项目页，创建项目并绑定项目级资源。
+5. 用户从左侧一级导航进入探索、产品、开发、销售模块。
+6. 每个主模块以子模块卡片展示具体能力入口，例如机会雷达、MVP 收敛、PR 拆分、发布计划。
+7. 模块运行态、Evidence、Decision Gate、Artifact Studio、Run Timeline 后续作为子模块能力展开。
+8. runtime.ping、trace_id、引擎错误只在状态栏和诊断区展示。
 
 ## MVP 做法
 
-- Left Rail：Mission 列表、阶段导航、Artifact 入口、Capability 入口。
-- Center Workspace：Idea Chat、Incubator Board、Blueprint Canvas、Run Timeline、Artifact Studio 多视图切换。
-- Right Inspector：Evidence Drawer、Cost/Risk Panel、Approval Diff Card。
-- Run Timeline 使用 virtualized list。
-- UI 状态由 event stream reducer 重建。
+- 左侧一级导航：聊天、项目、资源、探索、产品、开发、销售、设置、诊断。
+- Chat Workspace：
+  - 会话列表。
+  - 对话消息区。
+  - Agent / 项目上下文摘要。
+  - 发送消息走 Go Engine chat stub。
+- Resource Center：
+  - 模型服务商保存 / 测试。
+  - API Key 只发送到 Engine，Renderer 只显示 maskedKey。
+  - Agent、Skill、Tool、MCP 使用 Engine seed data。
+- Project Space：
+  - 项目列表、创建项目、编辑基础信息、删除项目。
+  - 绑定默认模型、Agent、Skill、Tool、MCP。
+- Module Workspaces：
+  - 探索：机会雷达、用户画像、竞品地图、证据图谱。
+  - 产品：MVP 收敛、PRD 草案、原型说明、蓝图画布。
+  - 开发：技术架构、技术栈与成本、PR 拆分、测试门禁。
+  - 销售：定位文案、落地页、发布计划、反馈循环。
+  - 所有模块和子模块必须携带 projectId。
+- Settings / Diagnostics：
+  - 说明安全边界。
+  - 展示 runtime.ping 和 typed API 覆盖状态。
 
 ## 后续扩展
 
-- 多人协作 presence 和评论。
-- Blueprint Canvas 图形化编辑。
-- Evidence Graph 可视化。
-- Artifact Studio 支持 diff、版本、批注和发布。
-- Command-K 支持自定义命令和插件命令。
+- Chat Workspace 接入 Model Gateway streaming。
+- Resource Center 接入真实模型测试、MCP tool discovery、Skill manifest validation。
+- Project Modules 接入真实 Run Timeline、Artifact Studio、Evidence Drawer、Decision Gate。
+- Command-K 支持资源创建、项目跳转、Agent 切换、模块启动。
+- 项目级数据接入 EventStore 和 ArtifactStore。
 
 ## 风险
 
-- 视图过多会让 MVP 复杂；首版要用统一布局承载多状态。
-- 如果 Evidence Drawer 难用，Evidence-first 会变成口号。
-- Approval Diff Card 如果信息不足，用户无法安全决策。
-- Cost/Risk Panel 如果太吵，会造成审批疲劳。
+- 过早突出运行态大屏会让产品看起来像演示，而不是可用工作台。
+- 资源中心如果没有 typed API 和 Engine stub，后续 Agent 能力会被硬编码。
+- Renderer 如果保存 secret，会破坏 Electron 安全边界。
+- 项目模块如果没有 projectId，会导致多项目隔离失败。
+- UI 如果继续堆在单文件，会降低后续迭代速度和测试覆盖。

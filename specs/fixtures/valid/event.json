@@ -1,0 +1,13 @@
+{
+  "event_id": "evt_001",
+  "schema_version": "0.1",
+  "trace_id": "tr_001",
+  "mission_id": "msn_001",
+  "run_id": "run_001",
+  "actor": "orchestrator",
+  "timestamp": "2026-06-30T00:00:00Z",
+  "type": "mission.created",
+  "payload": {
+    "title": "AI 项目孵化器"
+  }
+}

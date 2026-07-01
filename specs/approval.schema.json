@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dreamworker.dev/approval/v0.1/schema.json",
+  "title": "ApprovalRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "approval_id",
+    "trace_id",
+    "capability_id",
+    "risk",
+    "status",
+    "reason"
+  ],
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "approval_id": { "type": "string", "pattern": "^apr_[A-Za-z0-9_-]+$" },
+    "trace_id": { "type": "string", "pattern": "^tr_[A-Za-z0-9_-]+$" },
+    "capability_id": { "type": "string", "pattern": "^cap_[A-Za-z0-9_-]+$" },
+    "risk": { "enum": ["low", "medium", "high", "critical"] },
+    "status": { "enum": ["pending", "approved", "rejected", "edited", "cancelled"] },
+    "reason": { "type": "string", "minLength": 1 },
+    "diff_summary": { "type": "string" }
+  }
+}

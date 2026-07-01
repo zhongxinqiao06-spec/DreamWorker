@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dreamworker.dev/error/v0.1/schema.json",
+  "title": "DreamWorkerError",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["code", "message", "recoverable", "user_action", "trace_id"],
+  "properties": {
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]+$"
+    },
+    "message": { "type": "string", "minLength": 1 },
+    "recoverable": { "type": "boolean" },
+    "user_action": { "type": "string", "minLength": 1 },
+    "trace_id": { "type": "string", "pattern": "^tr_[A-Za-z0-9_-]+$" }
+  }
+}

@@ -2,105 +2,121 @@
 
 ## 目标
 
-给出 DreamWorker 从本地 MVP 到开放式项目孵化器操作系统的阶段路线，确保产品、架构、安全、开放接入、可观测性和 eval 同步演进。
+把 DreamWorker 的路线统一为 AI OS + Agent Runtime + 项目孵化系统，而不是“先做一个聊天壳，再慢慢加能力”。第一阶段必须先把资源中心、聊天工作区、Agent Runtime 契约和项目隔离打穿；后续 Explore、Product、Development、Sales 才有真实执行底座。
 
-## 非目标
+这里的 MVP 只表示“第一条完整可验收闭环”，不表示展示型、缩水型、糊弄型实现。
 
-- 不把路线写成承诺日期。
-- 不在 Phase 1 做平台化。
-- 不为了生态开放牺牲本地 MVP 的可信闭环。
-- 不把 marketplace 放在安全和 capability 基础之前。
+## 强约束
 
-## 核心对象
+- 不做只有 UI 的 demo。
+- 不做没有 Agent Runtime 的聊天工具。
+- 不做 Skill、Tool、MCP 混在一起的配置页。
+- 不让 Renderer 保存 secret、项目数据或聊天历史。
+- 不让模型调用绕过 Model Gateway。
+- 不让工具调用绕过 Tool Router、Policy 和 Approval。
+- 不让项目数据缺少 `projectId` 隔离。
 
-- Phase。
-- Milestone。
-- AcceptanceCriteria。
-- RiskRegister。
-- CapabilitySet。
-- EvalGate。
-- ReleaseDecision。
+## 参考基准
 
-## 数据结构示例
+- Cherry Studio：参考多模型供应商、模型列表、MCP 配置、Agent 配置和用户友好的资源管理体验，不复制代码和视觉资产。
+- MCP：对齐 JSON-RPC、tools、resources、prompts、capability negotiation、stdio/HTTP/SSE 传输扩展。
+- Anthropic Agent Skills：兼容 `SKILL.md`、instructions、scripts、resources 的 skill bundle 形态。
+- OpenAI Agents SDK：对齐 tools、handoffs、guardrails、tracing、runner loop、structured output，但 DreamWorker 自己管理 project isolation、approval 和 state。
 
-```yaml
-phase:
-  id: phase_1_mvp
-  name: "Local Incubator MVP"
-  goals:
-    - "完成 Mission 到 Blueprint 的闭环"
-    - "实现 Evidence Graph 和 Decision Gate"
-  acceptance:
-    - "Discover/Validate/Shape 可跑通"
-    - "每阶段输出 Decision"
-    - "所有 tool call 有 trace_id"
-    - "高风险动作走 PolicyEngine"
-```
+## 阶段路线
 
-## 关键流程
+### Phase 0：计划和契约校准
 
-1. 每个 Phase 进入前定义 acceptance。
-2. 开发过程中用 plans 和 rules 控制范围。
-3. Phase 结束跑 golden tasks 和核心 SLO smoke。
-4. ReleaseDecision 使用 continue、pivot、pause、kill、ask_user。
-5. 风险进入下一阶段 backlog。
+- 重构 `.codex/plans` 与 `.codex/dev`，统一 AI OS / Runtime / Resource / Chat 主线。
+- 明确 Resource Center + Chat Workspace 是 Phase 1 主入口。
+- 所有阶段输出必须包含 schema、UI、runtime stub、test case、example。
 
-## MVP 做法
+ExitGate：
 
-Phase 0：Domain and Docs
+- `plans/11`、`plans/12`、`dev/00`、`dev/07`、`dev/13` 不再互相冲突。
+- PR 路线能直接交给 Codex 执行。
 
-- 完成孵化器域模型、架构、Capability Bus、安全、UIUX、性能和 eval 计划。
-- 明确 `code-q/` 只作参考。
+### Phase 1：Resource + Chat Runtime Core
 
-Phase 1：Local Incubator MVP
+- Provider system：OpenAI、Anthropic、DeepSeek、GLM、Volcano、SiliconFlow、OpenAI Compatible、Ollama。
+- Provider UX：masked key、test connection、auto fetch models、default model、capability/status。
+- Agent config：system prompt、model profile、skills、tools、MCP、runtime config、planner、executor、memory scope。
+- Chat runtime：session history、agent/model/project binding、execution steps、tool call preview、trace_id。
+- Engine stub：所有前端功能通过 typed API 进入 Go Engine，不走本地硬编码。
 
-- Electron workspace + Go Engine skeleton。
-- Mission、Stage、Hypothesis、Evidence、Decision、Blueprint、Run、Artifact。
-- Discover、Validate、Shape 主流程。
-- EventStore、ArtifactStore、PolicyEngine、CapabilityInvoker。
+ExitGate：
 
-Phase 2：Capability Alpha
+- 资源中心和聊天页不是静态展示，能读写 Engine 数据。
+- 发送聊天消息返回 `PLAN -> GRAPH -> EXECUTE -> OBSERVE -> REPLAN` 结构。
+- CI、build、安全 smoke 全过。
 
-- MCP Client。
-- Capability lifecycle。
-- TrustLevel。
-- Approval Diff Card。
-- Basic conformance tests。
+### Phase 2：Capability + MCP + Skill Alpha
 
-Phase 3：Execution Alpha
+- MCP registry：stdio、HTTP、SSE、JSON-RPC 2.0 抽象。
+- Tool discovery：MCP tools 映射为 DreamWorker Tool。
+- Skill import：Anthropic-style skill bundle 导入为 DreamWorker Skill。
+- Policy：MCP、Skill、Tool 都有 trust level、risk level、approval required。
 
-- Build/Launch/Learn 半自动执行。
-- A2A external agent。
-- Skill Runner。
-- Cost/Risk Panel 和 Run Timeline hardening。
+ExitGate：
 
-Phase 4：Open Platform Beta
+- 未验证 MCP/Skill 默认不可静默执行。
+- Tool Router 和 PolicyEngine 对所有外部能力生效。
 
-- SDK 草案。
-- Adapter examples。
-- DreamWorker as MCP Server / A2A Server。
-- Marketplace 雏形。
+### Phase 3：Project Incubation Graph
 
-Phase 5：Team and Commercial
+- Explore、Product、Development、Sales 四个项目模块接入 Agent Runtime。
+- 每个模块有 default agent、default skill、default tool、MCP recommendation、input schema、output artifact。
+- 项目级 memory、artifact、event、decision gate 形成闭环。
 
-- Team workspace。
-- 权限、审计、计费。
-- 私有部署。
-- 行业模板和公共案例库。
+ExitGate：
 
-## 后续扩展
+- 单个 idea 能进入项目空间并生成可追踪 artifact。
+- 每个 artifact 可追溯到 agent、tool、trace、projectId。
 
-- 云端 Engine。
-- 多租户 project workspace。
-- 企业 policy profile。
-- 行业孵化包。
-- 第三方 capability marketplace。
-- 跨项目 knowledge graph。
+### Phase 4：Real Model Gateway
+
+- OpenAI-compatible `/models` 和 chat/tool calling。
+- Anthropic model mapping 与 tool/skill 兼容。
+- Ollama local model discovery。
+- DeepSeek、GLM、Volcano、SiliconFlow provider adapter。
+- Streaming response、structured output、cost budget、fallback resolution。
+
+ExitGate：
+
+- 至少两个云端 provider 和一个本地 provider 可切换。
+- Provider 错误和成本状态能在 UI 中清晰呈现。
+
+### Phase 5：Execution Hardening
+
+- Task Graph scheduler、replanner、memory injection、context compression。
+- Run Timeline、trace store、diagnostics、golden tasks。
+- Cost/Risk panel、approval diff、rollback。
+
+ExitGate：
+
+- 长任务可观察、可中断、可恢复、可评估。
+- 高风险动作没有 approval 不能执行。
+
+### Phase 6：Open Platform
+
+- DreamWorker as MCP Server。
+- A2A external agent adapter。
+- SDK/examples/conformance tests。
+- Marketplace 只在 security、policy、sandbox 成熟后进入。
+
+ExitGate：
+
+- 外部接入有稳定 manifest、conformance 和安全边界。
+
+## 优先级
+
+- P0：Resource Center、Chat Workspace、Agent Runtime contract、Provider system、project isolation、secret isolation。
+- P1：真实 Model Gateway、MCP discovery、Skill import、streaming、memory。
+- P2：SDK、marketplace、team workspace、cloud sync。
 
 ## 风险
 
-- Phase 1 如果不守边界，会滑向大而全 Agent OS。
-- Phase 2 如果没有安全基础，开放接入会引入供应链风险。
-- Phase 3 自动执行过度会造成用户不信任。
-- Phase 4 SDK 过早稳定会锁死错误抽象。
-- Phase 5 商业化前如果 eval 不足，质量波动会影响留存。
+- 如果 Phase 1 只做 UI，后续 Agent 会变成 prompt 拼接。
+- 如果 Provider 只是设置项，模型切换、Agent 配置、成本控制都会失真。
+- 如果 Skill/Tool/MCP 不分层，安全策略无法落地。
+- 如果聊天不是 Runtime 入口，产品会滑回普通 chat app。

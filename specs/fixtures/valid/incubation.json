@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1",
+  "kind": "Decision",
+  "id": "dec_001",
+  "mission_id": "msn_001",
+  "stage": "Validate",
+  "status": "completed",
+  "confidence": 0.72,
+  "risk": "medium",
+  "next_best_action": "继续访谈 5 个同类用户",
+  "evidence_refs": ["ev_001"],
+  "decision_type": "continue"
+}

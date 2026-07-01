@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1",
+  "task_id": "discover_brief",
+  "stage": "Explore",
+  "goal": "",
+  "assigned_agent": "product_analyst",
+  "required_capabilities": ["model_generate_stub"],
+  "expected_artifacts": ["dream_brief.md"],
+  "depends_on": ["missing_task"],
+  "budget": { "max_tokens": 0, "max_cost_usd": 0 },
+  "status": "waiting",
+  "trace_id": "fixture"
+}

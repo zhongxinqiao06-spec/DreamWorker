@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dreamworker.dev/task/v0.1/schema.json",
+  "title": "AgentTask",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "stage",
+    "goal",
+    "assigned_agent",
+    "required_capabilities",
+    "expected_artifacts",
+    "depends_on",
+    "budget",
+    "status",
+    "trace_id"
+  ],
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "task_id": { "type": "string", "pattern": "^tsk_[A-Za-z0-9_-]+$" },
+    "stage": { "enum": ["Discover", "Validate", "Shape", "Build", "Launch", "Learn"] },
+    "goal": { "type": "string", "minLength": 1 },
+    "assigned_agent": { "type": "string", "minLength": 1 },
+    "required_capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^cap_[A-Za-z0-9_-]+$" }
+    },
+    "expected_artifacts": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "depends_on": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^tsk_[A-Za-z0-9_-]+$" }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_tokens", "max_cost_usd"],
+      "properties": {
+        "max_tokens": { "type": "integer", "minimum": 1 },
+        "max_cost_usd": { "type": "number", "minimum": 0 }
+      }
+    },
+    "status": { "enum": ["pending", "running", "completed", "failed", "cancelled"] },
+    "trace_id": { "type": "string", "pattern": "^tr_[A-Za-z0-9_-]+$" }
+  }
+}

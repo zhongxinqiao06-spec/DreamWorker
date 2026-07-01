@@ -8,9 +8,5 @@
     "outDir": "../../out/desktop-node-types",
     "tsBuildInfoFile": "../../out/desktop-node.tsbuildinfo"
   },
-  "include": [
-    "electron.vite.config.ts",
-    "main/**/*.ts",
-    "preload/**/*.ts"
-  ]
+  "include": ["electron.vite.config.ts", "main/**/*.ts", "preload/**/*.ts", "shared/**/*.ts"]
 }

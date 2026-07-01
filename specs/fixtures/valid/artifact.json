@@ -1,0 +1,11 @@
+{
+  "schema_version": "0.1",
+  "artifact_id": "art_research_pack",
+  "mission_id": "msn_001",
+  "run_id": "run_001",
+  "kind": "research_pack",
+  "title": "Research Pack",
+  "version": 1,
+  "uri": "artifact://msn_001/research_pack.md",
+  "content_type": "text/markdown"
+}

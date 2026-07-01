@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1",
+  "task_id": "tsk_discover_brief",
+  "stage": "Discover",
+  "goal": "Generate a Dream Brief for the mission idea.",
+  "assigned_agent": "product_analyst",
+  "required_capabilities": ["cap_model_generate_stub", "cap_artifact_write"],
+  "expected_artifacts": ["dream_brief.md"],
+  "depends_on": [],
+  "budget": { "max_tokens": 4000, "max_cost_usd": 0 },
+  "status": "pending",
+  "trace_id": "tr_fixture"
+}

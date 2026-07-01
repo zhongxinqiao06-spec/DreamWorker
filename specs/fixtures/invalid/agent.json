@@ -1,0 +1,16 @@
+{
+  "schema_version": "0.1",
+  "id": "product_analyst",
+  "role": "",
+  "allowed_capabilities": ["model_generate_stub"],
+  "default_model_profile": "stub_reasoning_light",
+  "budget": { "max_tokens": 0, "max_cost_usd": 0 },
+  "timeout": "soon",
+  "approval_policy": "sometimes",
+  "expected_artifacts": ["dream_brief.md"],
+  "prompt_ref": {
+    "prompt_id": "product_analyst",
+    "prompt_version": "1",
+    "agent_id": "product_analyst"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dreamworker.dev/blueprint/v0.1/schema.json",
+  "title": "Blueprint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "blueprint_id", "mission_id", "title", "modules", "artifacts"],
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "blueprint_id": { "type": "string", "pattern": "^bp_[A-Za-z0-9_-]+$" },
+    "mission_id": { "type": "string", "pattern": "^msn_[A-Za-z0-9_-]+$" },
+    "title": { "type": "string", "minLength": 1 },
+    "modules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "goal"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "goal": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^art_[A-Za-z0-9_-]+$" }
+    }
+  }
+}

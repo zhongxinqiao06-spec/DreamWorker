@@ -1,0 +1,7 @@
+{
+  "code": "engine_not_connected",
+  "message": "",
+  "recoverable": true,
+  "user_action": "等待引擎接入后重试。",
+  "trace_id": "bad"
+}

@@ -1,0 +1,13 @@
+{
+  "apiVersion": "capability.dreamworker.dev/v1",
+  "kind": "builtin",
+  "metadata": {
+    "id": "artifact_write",
+    "name": "Artifact Write",
+    "version": "0.1",
+    "provider": "dreamworker"
+  },
+  "protocol": {
+    "type": "builtin"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dreamworker.dev/incubation/v0.1/schema.json",
+  "title": "IncubationObject",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "id", "mission_id"],
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "kind": {
+      "enum": ["Mission", "Stage", "Hypothesis", "Evidence", "Experiment", "Decision"]
+    },
+    "id": { "type": "string", "minLength": 1 },
+    "mission_id": { "type": "string", "pattern": "^msn_[A-Za-z0-9_-]+$" },
+    "stage": {
+      "enum": ["Discover", "Validate", "Shape", "Build", "Launch", "Learn"]
+    },
+    "status": {
+      "enum": ["draft", "pending", "running", "completed", "paused", "cancelled"]
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "statement": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string", "minLength": 1 },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "risk": { "enum": ["low", "medium", "high", "critical"] },
+    "next_best_action": { "type": "string", "minLength": 1 },
+    "evidence_refs": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^ev_[A-Za-z0-9_-]+$" }
+    },
+    "decision_type": {
+      "enum": ["continue", "pivot", "pause", "kill", "ask_user"]
+    }
+  }
+}

@@ -1,15 +1,26 @@
 # 06 Model Agent Runtime
 
-| Field | Value |
-| --- | --- |
-| Status | Ready for Implementation |
-| Owner | Agent Runtime |
-| Priority | P0 |
-| DependsOn | 04, 05 |
-| ExitGate | Orchestrator-mediated run creates normalized artifacts and eval report |
-| PR Range | PR-06-* |
-| Risk Level | High |
-| Last Review | 2026-06-30 |
+## Stream ModelGateway Addendum
+
+本阶段 ModelGateway 必须支持真实流式闭环：
+
+- `ModelGateway.Stream(ctx, request)` 是主路径，`Generate` 只能作为聚合兼容层。
+- Provider registry 按 `ModelProfile.providerId -> ProviderType` 选择 adapter。
+- OpenAI 使用 Responses API streaming；OpenAI Compatible 系列使用 Chat Completions SSE；Anthropic 使用 Messages streaming；Ollama 使用 `/api/chat` JSON line stream。
+- Engine 对外只输出 DreamWorker normalized stream event，不透传 provider 原始事件。
+- `model.requested`、`model.completed`、`model.failed` 写审计摘要；token delta 只走 transient UI stream。
+- 无 adapter、Provider disabled、缺 key、模型不存在时返回明确错误，不回退 stub 假装成功。
+
+| Field       | Value                                                                  |
+| ----------- | ---------------------------------------------------------------------- |
+| Status      | Ready for Implementation                                               |
+| Owner       | Agent Runtime                                                          |
+| Priority    | P0                                                                     |
+| DependsOn   | 04, 05                                                                 |
+| ExitGate    | Orchestrator-mediated run creates normalized artifacts and eval report |
+| PR Range    | PR-06-*                                                                |
+| Risk Level  | High                                                                   |
+| Last Review | 2026-06-30                                                             |
 
 ## 目标
 

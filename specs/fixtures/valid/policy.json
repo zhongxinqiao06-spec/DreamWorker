@@ -1,0 +1,10 @@
+{
+  "schema_version": "0.1",
+  "id": "pol_001",
+  "trace_id": "tr_001",
+  "action": "invoke_capability",
+  "capability_id": "cap_artifact_write",
+  "result": "requires_approval",
+  "risk": "medium",
+  "reason": "file_write"
+}

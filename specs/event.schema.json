@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dreamworker.dev/event/v0.1/schema.json",
+  "title": "EventEnvelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "schema_version",
+    "trace_id",
+    "mission_id",
+    "run_id",
+    "actor",
+    "timestamp",
+    "type",
+    "payload"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "pattern": "^evt_[A-Za-z0-9_-]+$" },
+    "schema_version": { "const": "0.1" },
+    "trace_id": { "type": "string", "pattern": "^tr_[A-Za-z0-9_-]+$" },
+    "mission_id": { "type": "string", "pattern": "^msn_[A-Za-z0-9_-]+$" },
+    "run_id": { "type": "string", "pattern": "^run_[A-Za-z0-9_-]+$" },
+    "actor": { "type": "string", "minLength": 1 },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "type": { "type": "string", "pattern": "^[a-z]+(\\.[a-z_]+)+$" },
+    "payload": { "type": "object" }
+  }
+}
