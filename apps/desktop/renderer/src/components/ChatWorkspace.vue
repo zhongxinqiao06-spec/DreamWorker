@@ -197,6 +197,9 @@ function modelProfileForMessage(message: ChatMessage): ModelProfile | undefined 
 
 function providerLogoForMessage(message: ChatMessage): string {
   const provider = activeProviderForMessage(message)
+  if (provider?.providerId === 'provider_9router_local') {
+    return '/provider-icons/9router.svg'
+  }
   return provider ? providerLogoSrc[provider.providerType] : '/provider-icons/openai.svg'
 }
 
@@ -553,7 +556,7 @@ onBeforeUnmount(() => {
             @change="appShell.setActiveChatProvider(($event.target as HTMLSelectElement).value)"
           >
             <option
-              v-for="provider in appShell.providers"
+              v-for="provider in appShell.chatSelectableProviders"
               :key="provider.providerId"
               :value="provider.providerId"
             >

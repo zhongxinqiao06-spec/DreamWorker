@@ -81,7 +81,7 @@ func (Gateway) HealthCheck(ctx context.Context, provider ports.ChatModelProvider
 			ErrorCode: "MODEL_PROVIDER_DISABLED",
 		}
 	}
-	if provider.ProviderType != ProviderOllama && provider.APIKey == "" {
+	if providerRequiresAPIKey(provider) && provider.APIKey == "" {
 		return ports.ProviderHealth{
 			Status:    "error",
 			Message:   "provider api key is missing",
@@ -151,7 +151,7 @@ func streamProviderModel(
 			out <- modelStreamChunk{Error: streamError("MODEL_PROVIDER_DISABLED", "provider is disabled", true)}
 			return
 		}
-		if provider.ProviderType != ProviderOllama && provider.APIKey == "" {
+		if providerRequiresAPIKey(provider) && provider.APIKey == "" {
 			out <- modelStreamChunk{Error: streamError("MODEL_API_KEY_MISSING", "provider api key is missing", true)}
 			return
 		}
@@ -615,10 +615,14 @@ func discoverProviderModels(ctx context.Context, provider ModelProviderRecord) (
 	if provider.APIKey == "sk-local-demo" {
 		return nil, errors.New("demo key cannot call real provider")
 	}
-	if provider.ProviderType != ProviderOllama && provider.APIKey == "" {
+	if providerRequiresAPIKey(provider) && provider.APIKey == "" {
 		return nil, errors.New("provider api key is missing")
 	}
 	return fetchProviderModels(ctx, provider)
+}
+
+func providerRequiresAPIKey(provider ports.ChatModelProvider) bool {
+	return provider.ProviderType != ProviderOllama && !provider.APIKeyOptional
 }
 
 func fetchProviderModels(ctx context.Context, provider ModelProviderRecord) ([]string, error) {

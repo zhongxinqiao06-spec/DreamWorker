@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import type {
   AgentConfig,
+  AppSettings,
   ChatContextSummary,
   ChatExecutionStep,
   ChatRuntimeSelection,
@@ -10,6 +11,10 @@ import type {
   ChatSession,
   ChatToolCallPreview,
   ContextBudgetReport,
+  ExtensionActionResult,
+  ExtensionLogLine,
+  ExtensionSpec,
+  ExtensionStatus,
   McpServerConfig,
   ModelProfile,
   ProviderCapability,
@@ -77,10 +82,32 @@ type McpDraft = Omit<SaveMcpServerInput, 'args' | 'secrets'> & {
   secretsText: string
 }
 
+type ResourceNoticeTone = 'success' | 'info' | 'error'
+
+type ResourceNotice = {
+  id: number
+  tone: ResourceNoticeTone
+  message: string
+}
+
 export type ProviderTemplateId =
   'deepseek' | 'siliconflow' | 'glm' | 'openai_compatible' | 'anthropic' | 'ollama'
 
 let activeChatStreamCancel: (() => Promise<void>) | null = null
+let resourceNoticeTimer: ReturnType<typeof setTimeout> | null = null
+
+function resourceFailureMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim()) {
+    return `${fallback}：${error.message.trim()}`
+  }
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = String((error as { message?: unknown }).message ?? '').trim()
+    if (message) {
+      return `${fallback}：${message}`
+    }
+  }
+  return fallback
+}
 
 export const providerTypeOptions: readonly {
   readonly value: SaveModelProviderInput['providerType']
@@ -347,6 +374,31 @@ function createEmptyContextBudget(): ContextBudgetReport {
   }
 }
 
+function createDefaultAppSettings(): AppSettings {
+  return {
+    enableNineRouterIntegration: true,
+    nineRouterRunMode: 'external',
+    nineRouterBaseURL: 'http://localhost:20128/v1',
+    nineRouterDashboardURL: 'http://localhost:20128',
+    nineRouterDefaultModel: 'kr/claude-sonnet-4.5',
+    nineRouterAutoDetectOnStart: true,
+    nineRouterManagedAutoStart: false,
+    nineRouterManagedAutoRestart: false,
+    nineRouterManagedInstallVersion: 'latest',
+    nineRouterManagedPackageName: '9router',
+    nineRouterManagedCommand: '9router',
+    nineRouterManagedWorkDir: '',
+    nineRouterManagedLogDir: '',
+    nineRouterManagedTimeoutMs: 30000,
+    allowNineRouterAsFreeRoute: true,
+    allowAgentsUseNineRouter: true
+  }
+}
+
+function statusFromExtensionResult(result: ExtensionActionResult): ExtensionStatus {
+  return result.status
+}
+
 function preferDeepSeekProvider(providers: SafeModelProvider[]): SafeModelProvider | undefined {
   return (
     providers.find((provider) => provider.providerId === 'provider_deepseek') ??
@@ -379,6 +431,15 @@ function profileForProviderModel(
   )
 }
 
+function providerSatisfiesChatKey(provider: SafeModelProvider): boolean {
+  return (
+    provider.enabled &&
+    (provider.providerType === 'ollama' ||
+      provider.providerId === 'provider_local_stub' ||
+      provider.hasApiKey)
+  )
+}
+
 export const useAppShellStore = defineStore('app-shell', {
   state: () => ({
     primaryNavItems,
@@ -389,6 +450,12 @@ export const useAppShellStore = defineStore('app-shell', {
     bootStatus: 'idle' as 'idle' | 'loading' | 'ready' | 'error',
     errorBanner: '',
     runtimePing: createIdleRuntimePingState(),
+    settings: createDefaultAppSettings(),
+    extensions: [] as ExtensionSpec[],
+    extensionStatuses: {} as Record<string, ExtensionStatus>,
+    extensionLogs: {} as Record<string, ExtensionLogLine[]>,
+    activeExtensionId: 'extension_9router',
+    extensionActionStatus: '',
     providers: [] as SafeModelProvider[],
     profiles: [] as ModelProfile[],
     agents: [] as AgentConfig[],
@@ -423,6 +490,7 @@ export const useAppShellStore = defineStore('app-shell', {
     chatStreamError: '',
     chatStreamTraceId: '',
     lastRetryUserMessageId: '',
+    resourceNotice: null as ResourceNotice | null,
     providerActionStatus: '',
     activeProjectId: '',
     activeChatSessionId: '',
@@ -445,6 +513,20 @@ export const useAppShellStore = defineStore('app-shell', {
     commandOpen: false
   }),
   getters: {
+    activeExtension: (state): ExtensionSpec | undefined =>
+      state.extensions.find((extension) => extension.extensionId === state.activeExtensionId) ??
+      state.extensions[0],
+    activeExtensionStatus: (state): ExtensionStatus | undefined =>
+      state.extensionStatuses[state.activeExtensionId],
+    nineRouterStatus: (state): ExtensionStatus | undefined =>
+      state.extensionStatuses.extension_9router,
+    chatSelectableProviders: (state): SafeModelProvider[] =>
+      state.providers.filter(
+        (provider) =>
+          provider.enabled &&
+          (provider.providerId !== 'provider_9router_local' ||
+            state.settings.allowAgentsUseNineRouter)
+      ),
     activeProvider: (state): SafeModelProvider | undefined =>
       state.providers.find((provider) => provider.providerId === state.activeProviderId) ??
       preferDeepSeekProvider(state.providers),
@@ -618,18 +700,32 @@ export const useAppShellStore = defineStore('app-shell', {
       this.errorBanner = ''
       try {
         await this.checkRuntimePing()
-        const [providers, profiles, agents, skills, tools, mcpServers, projects, chatSessions] =
-          await Promise.all([
-            window.dreamworker.models.listProviders(),
-            window.dreamworker.models.listModelProfiles(),
-            window.dreamworker.agents.listAgents(),
-            window.dreamworker.skills.listSkills(),
-            window.dreamworker.tools.listTools(),
-            window.dreamworker.mcp.listServers(),
-            window.dreamworker.projects.listProjects(),
-            window.dreamworker.chat.listSessions()
-          ])
+        const [
+          settings,
+          extensions,
+          providers,
+          profiles,
+          agents,
+          skills,
+          tools,
+          mcpServers,
+          projects,
+          chatSessions
+        ] = await Promise.all([
+          window.dreamworker.settings.getSettings(),
+          window.dreamworker.extensions.listExtensions(),
+          window.dreamworker.models.listProviders(),
+          window.dreamworker.models.listModelProfiles(),
+          window.dreamworker.agents.listAgents(),
+          window.dreamworker.skills.listSkills(),
+          window.dreamworker.tools.listTools(),
+          window.dreamworker.mcp.listServers(),
+          window.dreamworker.projects.listProjects(),
+          window.dreamworker.chat.listSessions()
+        ])
 
+        this.settings = settings
+        this.extensions = [...extensions]
         this.providers = [...providers]
         this.profiles = [...profiles]
         this.agents = [...agents]
@@ -648,6 +744,8 @@ export const useAppShellStore = defineStore('app-shell', {
         this.activeSkillId = this.skills[0]?.skillId ?? ''
         this.activeToolId = this.tools[0]?.toolId ?? ''
         this.activeMcpServerId = this.mcpServers[0]?.serverId ?? ''
+        this.activeExtensionId = this.extensions[0]?.extensionId ?? 'extension_9router'
+        await this.refreshExtensionStatus(this.activeExtensionId)
         if (this.activeProvider) {
           this.providerDraft = createProviderDraft(this.activeProvider)
         }
@@ -717,6 +815,155 @@ export const useAppShellStore = defineStore('app-shell', {
         }
       }
     },
+    showResourceNotice(message: string, tone: ResourceNoticeTone = 'success'): void {
+      this.resourceNotice = {
+        id: Date.now(),
+        tone,
+        message
+      }
+      if (resourceNoticeTimer) {
+        clearTimeout(resourceNoticeTimer)
+      }
+      resourceNoticeTimer = setTimeout(() => {
+        this.resourceNotice = null
+        resourceNoticeTimer = null
+      }, 2600)
+    },
+    showResourceFailure(error: unknown, fallback: string): void {
+      this.showResourceNotice(resourceFailureMessage(error, fallback), 'error')
+    },
+    setActiveExtension(extensionId: string): void {
+      this.activeExtensionId = extensionId
+      void this.refreshExtensionStatus(extensionId)
+    },
+    async refreshExtensionStatus(extensionId?: string): Promise<void> {
+      const targetExtensionId = extensionId ?? this.activeExtensionId
+      if (!targetExtensionId) {
+        return
+      }
+      const status = await window.dreamworker.extensions.getExtensionStatus(targetExtensionId)
+      this.extensionStatuses = {
+        ...this.extensionStatuses,
+        [targetExtensionId]: status
+      }
+    },
+    async refreshExtensionLogs(extensionId?: string, showNotice = false): Promise<void> {
+      const targetExtensionId = extensionId ?? this.activeExtensionId
+      if (!targetExtensionId) {
+        return
+      }
+      const logs = await window.dreamworker.extensions.tailExtensionLogs(targetExtensionId, {
+        limit: 160
+      })
+      this.extensionLogs = {
+        ...this.extensionLogs,
+        [targetExtensionId]: [...logs]
+      }
+      if (showNotice) {
+        this.showResourceNotice('日志已刷新')
+      }
+    },
+    async refreshProviders(): Promise<void> {
+      this.providers = [...(await window.dreamworker.models.listProviders())]
+      if (!this.providers.some((provider) => provider.providerId === this.activeProviderId)) {
+        this.activeProviderId = preferDeepSeekProvider(this.providers)?.providerId ?? ''
+      }
+    },
+    async applyExtensionResult(result: ExtensionActionResult): Promise<void> {
+      this.extensionStatuses = {
+        ...this.extensionStatuses,
+        [result.extensionId]: statusFromExtensionResult(result)
+      }
+      this.extensionActionStatus = result.message
+      this.showResourceNotice(
+        result.message || (result.ok ? '拓展操作已完成' : '拓展操作未完成'),
+        result.ok ? 'success' : 'error'
+      )
+      await this.refreshExtensionLogs(result.extensionId)
+      await this.refreshProviders()
+    },
+    async updateNineRouterSettings(partial: Partial<AppSettings>): Promise<void> {
+      this.settings = await window.dreamworker.settings.updateSettings(partial)
+      await this.refreshExtensionStatus('extension_9router')
+      await this.refreshProviders()
+      this.extensionActionStatus = '9Router 设置已保存'
+      this.showResourceNotice('9Router 设置已保存')
+    },
+    async resetNineRouterSettings(): Promise<void> {
+      this.settings = await window.dreamworker.settings.resetExtensionSettings('extension_9router')
+      await this.refreshExtensionStatus('extension_9router')
+      await this.refreshProviders()
+      this.extensionActionStatus = '9Router 设置已恢复默认'
+      this.showResourceNotice('9Router 设置已恢复默认')
+    },
+    async detectActiveExtension(): Promise<void> {
+      const result = await window.dreamworker.extensions.detectExtension(this.activeExtensionId)
+      await this.applyExtensionResult(result)
+    },
+    async installActiveExtension(): Promise<void> {
+      const result = await window.dreamworker.extensions.installExtension({
+        extensionId: this.activeExtensionId,
+        version: this.settings.nineRouterManagedInstallVersion
+      })
+      await this.applyExtensionResult(result)
+      await this.refreshExtensionLogs(this.activeExtensionId)
+    },
+    async startActiveExtension(): Promise<void> {
+      const result = await window.dreamworker.extensions.startExtension(this.activeExtensionId)
+      await this.applyExtensionResult(result)
+    },
+    async stopActiveExtension(): Promise<void> {
+      const result = await window.dreamworker.extensions.stopExtension(this.activeExtensionId)
+      await this.applyExtensionResult(result)
+    },
+    async restartActiveExtension(): Promise<void> {
+      const result = await window.dreamworker.extensions.restartExtension(this.activeExtensionId)
+      await this.applyExtensionResult(result)
+    },
+    async testActiveExtension(): Promise<void> {
+      const result = await window.dreamworker.extensions.testExtension(this.activeExtensionId)
+      await this.applyExtensionResult(result)
+    },
+    async refreshActiveExtensionModels(): Promise<void> {
+      const result = await window.dreamworker.extensions.refreshExtensionModels(
+        this.activeExtensionId
+      )
+      this.extensionStatuses = {
+        ...this.extensionStatuses,
+        [result.extensionId]: result.status
+      }
+      this.extensionActionStatus = result.ok
+        ? `已刷新 ${result.models.length} 个 9Router 模型`
+        : '模型刷新未完成'
+      this.showResourceNotice(
+        result.ok ? `已刷新 ${result.models.length} 个 9Router 模型` : '模型刷新未完成',
+        result.ok ? 'success' : 'error'
+      )
+      await this.refreshProviders()
+    },
+    async verifyActiveExtensionStreaming(): Promise<void> {
+      const result = await window.dreamworker.extensions.verifyExtensionStreaming(
+        this.activeExtensionId
+      )
+      this.extensionStatuses = {
+        ...this.extensionStatuses,
+        [result.extensionId]: result.status
+      }
+      this.extensionActionStatus = result.message
+      this.showResourceNotice(
+        result.message || (result.ok ? '流式输出已验证' : '流式输出验证失败'),
+        result.ok ? 'success' : 'error'
+      )
+      await this.refreshProviders()
+    },
+    async clearActiveExtensionLogs(): Promise<void> {
+      const result = await window.dreamworker.extensions.clearExtensionLogs(this.activeExtensionId)
+      await this.applyExtensionResult(result)
+      this.extensionLogs = {
+        ...this.extensionLogs,
+        [this.activeExtensionId]: []
+      }
+    },
     selectProvider(providerId: string): void {
       this.activeProviderId = providerId
       const provider = this.providers.find((item) => item.providerId === providerId)
@@ -726,6 +973,7 @@ export const useAppShellStore = defineStore('app-shell', {
       this.providerDraft = createProviderDraftFromTemplate(template)
       this.activeProviderId = ''
       this.providerActionStatus = '已创建服务商草稿，保存后生效'
+      this.showResourceNotice('已创建服务商草稿')
     },
     selectProfile(profileId: string): void {
       this.activeProfileId = profileId
@@ -737,6 +985,7 @@ export const useAppShellStore = defineStore('app-shell', {
       this.profileDraft = createProfileDraft(undefined, this.activeProvider)
       this.activeProfileId = ''
       this.providerActionStatus = '已创建模型配置草稿，保存后生效'
+      this.showResourceNotice('已创建模型配置草稿')
     },
     selectAgent(agentId: string): void {
       this.activeAgentId = agentId
@@ -747,6 +996,7 @@ export const useAppShellStore = defineStore('app-shell', {
       this.agentDraft = createAgentDraft(undefined, this.activeProfile)
       this.activeAgentId = ''
       this.providerActionStatus = '已创建 Agent 草稿，保存后生效'
+      this.showResourceNotice('已创建 Agent 草稿')
     },
     setAgentDraftProvider(providerId: string): void {
       const provider = this.providers.find((item) => item.providerId === providerId)
@@ -780,6 +1030,7 @@ export const useAppShellStore = defineStore('app-shell', {
       this.skillDraft = createSkillDraft()
       this.activeSkillId = ''
       this.providerActionStatus = '已创建 Skill 草稿，保存后生效'
+      this.showResourceNotice('已创建 Skill 草稿')
     },
     selectTool(toolId: string): void {
       this.activeToolId = toolId
@@ -790,6 +1041,7 @@ export const useAppShellStore = defineStore('app-shell', {
       this.toolDraft = createToolDraft()
       this.activeToolId = ''
       this.providerActionStatus = '已创建工具草稿，保存后生效'
+      this.showResourceNotice('已创建工具草稿')
     },
     selectMcpServer(serverId: string): void {
       this.activeMcpServerId = serverId
@@ -800,6 +1052,7 @@ export const useAppShellStore = defineStore('app-shell', {
       this.mcpDraft = createMcpDraft()
       this.activeMcpServerId = ''
       this.providerActionStatus = '已创建 MCP 草稿，保存后生效'
+      this.showResourceNotice('已创建 MCP 草稿')
     },
     async saveProfileDraft(): Promise<void> {
       const profile = await window.dreamworker.models.saveModelProfile({
@@ -813,6 +1066,7 @@ export const useAppShellStore = defineStore('app-shell', {
       this.profiles.unshift(profile)
       this.selectProfile(profile.profileId)
       this.providerActionStatus = '模型配置已保存'
+      this.showResourceNotice('模型配置已保存')
     },
     async deleteActiveProfile(): Promise<void> {
       const profileId = this.activeProfileId || this.profileDraft.profileId
@@ -825,32 +1079,57 @@ export const useAppShellStore = defineStore('app-shell', {
         preferDeepSeekProfile(this.profiles, this.activeProviderId)?.profileId ?? ''
       this.profileDraft = createProfileDraft(this.activeProfile, this.activeProvider)
       this.providerActionStatus = '模型配置已删除'
+      this.showResourceNotice('模型配置已删除')
     },
     async saveProviderDraft(): Promise<void> {
-      let input: SaveModelProviderInput = {
-        providerId: this.providerDraft.providerId,
-        providerType: this.providerDraft.providerType,
-        displayName: this.providerDraft.displayName,
-        baseURL: this.providerDraft.baseURL,
-        organization: null,
-        project: null,
-        defaultModel: this.providerDraft.defaultModel,
-        availableModels: this.providerDraft.availableModelsText
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter(Boolean),
-        capabilities: this.providerDraft.capabilities,
-        enabled: this.providerDraft.enabled
+      try {
+        const missingKeyBlockedBeforeSave = this.composerDisabledReason === '缺少密钥'
+        const previousChatProviderId = this.activeChatProviderId
+        const previousChatModel = this.activeChatModel
+        let input: SaveModelProviderInput = {
+          providerId: this.providerDraft.providerId,
+          providerType: this.providerDraft.providerType,
+          displayName: this.providerDraft.displayName,
+          baseURL: this.providerDraft.baseURL,
+          organization: null,
+          project: null,
+          defaultModel: this.providerDraft.defaultModel,
+          availableModels: this.providerDraft.availableModelsText
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean),
+          capabilities: this.providerDraft.capabilities,
+          enabled: this.providerDraft.enabled
+        }
+        const apiKey = this.providerDraft.apiKey.trim()
+        if (apiKey) {
+          input = { ...input, apiKey }
+        }
+        const provider = await window.dreamworker.models.saveProvider(input)
+        this.providers = this.providers.filter((item) => item.providerId !== provider.providerId)
+        this.providers.unshift(provider)
+        this.selectProvider(provider.providerId)
+        if (
+          providerSatisfiesChatKey(provider) &&
+          (missingKeyBlockedBeforeSave || previousChatProviderId === provider.providerId)
+        ) {
+          await this.updateActiveChatSessionBinding({
+            providerId: provider.providerId,
+            model:
+              previousChatProviderId === provider.providerId
+                ? previousChatModel
+                : provider.defaultModel || provider.availableModels[0] || ''
+          })
+          this.providerActionStatus = '模型服务商配置已保存，聊天已同步到该服务商'
+          this.showResourceNotice('模型服务商配置已保存，聊天已同步')
+          return
+        }
+        this.providerActionStatus = '模型服务商配置已保存'
+        this.showResourceNotice('模型服务商配置已保存')
+      } catch (error) {
+        this.providerActionStatus = resourceFailureMessage(error, '模型服务商配置保存失败')
+        this.showResourceFailure(error, '模型服务商配置保存失败')
       }
-      const apiKey = this.providerDraft.apiKey.trim()
-      if (apiKey) {
-        input = { ...input, apiKey }
-      }
-      const provider = await window.dreamworker.models.saveProvider(input)
-      this.providers = this.providers.filter((item) => item.providerId !== provider.providerId)
-      this.providers.unshift(provider)
-      this.selectProvider(provider.providerId)
-      this.providerActionStatus = '模型服务商配置已保存'
     },
     async deleteActiveProvider(): Promise<void> {
       const providerId = this.activeProviderId || this.providerDraft.providerId
@@ -862,6 +1141,7 @@ export const useAppShellStore = defineStore('app-shell', {
       this.activeProviderId = preferDeepSeekProvider(this.providers)?.providerId ?? ''
       this.providerDraft = createProviderDraft(this.activeProvider)
       this.providerActionStatus = '模型服务商已删除'
+      this.showResourceNotice('模型服务商已删除')
     },
     async toggleActiveProvider(enabled: boolean): Promise<void> {
       this.providerDraft.enabled = enabled
@@ -873,6 +1153,10 @@ export const useAppShellStore = defineStore('app-shell', {
       }
       const result = await window.dreamworker.models.testProvider(this.activeProviderId)
       this.providerActionStatus = `${result.message} trace_id ${result.trace_id}`
+      this.showResourceNotice(
+        result.message || (result.ok ? '连接检查已通过' : '连接检查失败'),
+        result.ok ? 'success' : 'error'
+      )
       const provider =
         (await window.dreamworker.models.listProviders()).find(
           (item) => item.providerId === this.activeProviderId
@@ -895,6 +1179,7 @@ export const useAppShellStore = defineStore('app-shell', {
       )
       this.selectProvider(provider.providerId)
       this.providerActionStatus = `已自动获取 ${provider.availableModels.length} 个模型`
+      this.showResourceNotice(`已自动获取 ${provider.availableModels.length} 个模型`)
     },
     async saveAgentDraft(): Promise<void> {
       const modelProfile =
@@ -917,6 +1202,7 @@ export const useAppShellStore = defineStore('app-shell', {
       this.agents.unshift(agent)
       this.selectAgent(agent.agentId)
       this.providerActionStatus = 'Agent 已保存'
+      this.showResourceNotice('Agent 已保存')
     },
     async duplicateActiveAgent(): Promise<void> {
       if (!this.activeAgentId) {
@@ -926,6 +1212,7 @@ export const useAppShellStore = defineStore('app-shell', {
       this.agents.unshift(agent)
       this.selectAgent(agent.agentId)
       this.providerActionStatus = 'Agent 副本已创建'
+      this.showResourceNotice('Agent 副本已创建')
     },
     async deleteActiveAgent(): Promise<void> {
       const agentId = this.activeAgentId || this.agentDraft.agentId
@@ -937,6 +1224,7 @@ export const useAppShellStore = defineStore('app-shell', {
       this.activeAgentId = this.agents[0]?.agentId ?? ''
       this.agentDraft = createAgentDraft(this.activeAgent, this.activeProfile)
       this.providerActionStatus = 'Agent 已删除'
+      this.showResourceNotice('Agent 已删除')
     },
     async saveSkillDraft(): Promise<void> {
       const skill = await window.dreamworker.skills.saveSkill(this.skillDraft)
@@ -944,6 +1232,7 @@ export const useAppShellStore = defineStore('app-shell', {
       this.skills.unshift(skill)
       this.selectSkill(skill.skillId)
       this.providerActionStatus = 'Skill 已保存'
+      this.showResourceNotice('Skill 已保存')
     },
     async deleteActiveSkill(): Promise<void> {
       const skillId = this.activeSkillId || this.skillDraft.skillId
@@ -955,6 +1244,7 @@ export const useAppShellStore = defineStore('app-shell', {
       this.activeSkillId = this.skills[0]?.skillId ?? ''
       this.skillDraft = createSkillDraft(this.activeSkill)
       this.providerActionStatus = 'Skill 已删除'
+      this.showResourceNotice('Skill 已删除')
     },
     async saveToolDraft(): Promise<void> {
       const tool = await window.dreamworker.tools.saveTool(this.toolDraft)
@@ -962,6 +1252,7 @@ export const useAppShellStore = defineStore('app-shell', {
       this.tools.unshift(tool)
       this.selectTool(tool.toolId)
       this.providerActionStatus = '工具已保存'
+      this.showResourceNotice('工具已保存')
     },
     async deleteActiveTool(): Promise<void> {
       const toolId = this.activeToolId || this.toolDraft.toolId
@@ -973,6 +1264,7 @@ export const useAppShellStore = defineStore('app-shell', {
       this.activeToolId = this.tools[0]?.toolId ?? ''
       this.toolDraft = createToolDraft(this.activeTool)
       this.providerActionStatus = '工具已删除'
+      this.showResourceNotice('工具已删除')
     },
     async saveMcpDraft(): Promise<void> {
       const secrets: Record<string, string> = {}
@@ -1005,6 +1297,7 @@ export const useAppShellStore = defineStore('app-shell', {
       this.mcpServers.unshift(server)
       this.selectMcpServer(server.serverId)
       this.providerActionStatus = 'MCP 服务已保存'
+      this.showResourceNotice('MCP 服务已保存')
     },
     async deleteActiveMcpServer(): Promise<void> {
       const serverId = this.activeMcpServerId || this.mcpDraft.serverId
@@ -1016,6 +1309,7 @@ export const useAppShellStore = defineStore('app-shell', {
       this.activeMcpServerId = this.mcpServers[0]?.serverId ?? ''
       this.mcpDraft = createMcpDraft(this.activeMcpServer)
       this.providerActionStatus = 'MCP 服务已删除'
+      this.showResourceNotice('MCP 服务已删除')
     },
     async testActiveMcpServer(): Promise<void> {
       if (!this.activeMcpServerId) {
@@ -1023,6 +1317,10 @@ export const useAppShellStore = defineStore('app-shell', {
       }
       const result = await window.dreamworker.mcp.testServer(this.activeMcpServerId)
       this.providerActionStatus = `${result.message} trace_id ${result.trace_id}`
+      this.showResourceNotice(
+        result.message || (result.ok ? 'MCP 检查已通过' : 'MCP 检查失败'),
+        result.ok ? 'success' : 'error'
+      )
     },
     async selectProject(projectId: string): Promise<void> {
       this.activeProjectId = projectId
@@ -1581,6 +1879,7 @@ export const useAppShellStore = defineStore('app-shell', {
       if (this.activeToolId === tool.toolId) {
         this.toolDraft = createToolDraft(tool)
       }
+      this.showResourceNotice(enabled ? '工具已启用' : '工具已停用')
     },
     async refreshActiveMcpTools(): Promise<void> {
       if (!this.activeMcpServerId) {
@@ -1595,13 +1894,14 @@ export const useAppShellStore = defineStore('app-shell', {
         )
       ]
       this.providerActionStatus = `已刷新 MCP 工具：${tools.length} 个`
+      this.showResourceNotice(`已刷新 MCP 工具：${tools.length} 个`)
     },
     toggleCommand(): void {
       this.commandOpen = !this.commandOpen
     },
     runCommand(target: PrimaryNavId | ResourceTabId): void {
       this.commandOpen = false
-      if (target === 'providers' || target === 'agents') {
+      if (target === 'providers' || target === 'extensions' || target === 'agents') {
         this.setPrimary('resources')
         this.setResourceTab(target)
         return

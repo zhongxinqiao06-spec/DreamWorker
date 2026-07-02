@@ -13,6 +13,14 @@ import {
   type DeleteProjectInput,
   type DeleteResult,
   type DreamWorkerApi,
+  type AppSettings,
+  type ExtensionActionResult,
+  type ExtensionLogLine,
+  type ExtensionModelRefreshResult,
+  type ExtensionSpec,
+  type ExtensionStatus,
+  type ExtensionStreamingResult,
+  type InstallExtensionInput,
   type McpServerConfig,
   type ModelProfile,
   type Project,
@@ -30,6 +38,7 @@ import {
   type SkillConfig,
   type TestResult,
   type ToolConfig,
+  type UpdateSettingsInput,
   type UpdateChatSessionInput,
   type UpdateProjectInput,
   type UpdateProjectModuleConfigInput
@@ -74,6 +83,45 @@ export function createDreamWorkerApi(invoke: IpcInvoke, listen?: IpcListen): Dre
         invokeTyped<ModelProfile>(invoke, CHANNELS.modelsSaveProfile, input),
       deleteModelProfile: (profileId: string) =>
         invokeTyped<DeleteResult>(invoke, CHANNELS.modelsDeleteProfile, { profileId })
+    },
+    settings: {
+      getSettings: () => invokeTyped<AppSettings>(invoke, CHANNELS.settingsGet),
+      updateSettings: (input: UpdateSettingsInput) =>
+        invokeTyped<AppSettings>(invoke, CHANNELS.settingsUpdate, input),
+      resetExtensionSettings: (extensionId: string) =>
+        invokeTyped<AppSettings>(invoke, CHANNELS.settingsResetExtension, { extensionId })
+    },
+    extensions: {
+      listExtensions: () => invokeTyped<readonly ExtensionSpec[]>(invoke, CHANNELS.extensionsList),
+      getExtensionStatus: (extensionId: string) =>
+        invokeTyped<ExtensionStatus>(invoke, CHANNELS.extensionsGetStatus, { extensionId }),
+      detectExtension: (extensionId: string) =>
+        invokeTyped<ExtensionActionResult>(invoke, CHANNELS.extensionsDetect, { extensionId }),
+      installExtension: (input: InstallExtensionInput) =>
+        invokeTyped<ExtensionActionResult>(invoke, CHANNELS.extensionsInstall, input),
+      startExtension: (extensionId: string) =>
+        invokeTyped<ExtensionActionResult>(invoke, CHANNELS.extensionsStart, { extensionId }),
+      stopExtension: (extensionId: string) =>
+        invokeTyped<ExtensionActionResult>(invoke, CHANNELS.extensionsStop, { extensionId }),
+      restartExtension: (extensionId: string) =>
+        invokeTyped<ExtensionActionResult>(invoke, CHANNELS.extensionsRestart, { extensionId }),
+      testExtension: (extensionId: string) =>
+        invokeTyped<ExtensionActionResult>(invoke, CHANNELS.extensionsTest, { extensionId }),
+      refreshExtensionModels: (extensionId: string) =>
+        invokeTyped<ExtensionModelRefreshResult>(invoke, CHANNELS.extensionsRefreshModels, {
+          extensionId
+        }),
+      verifyExtensionStreaming: (extensionId: string) =>
+        invokeTyped<ExtensionStreamingResult>(invoke, CHANNELS.extensionsVerifyStreaming, {
+          extensionId
+        }),
+      tailExtensionLogs: (extensionId: string, options?: { readonly limit?: number }) =>
+        invokeTyped<readonly ExtensionLogLine[]>(invoke, CHANNELS.extensionsTailLogs, {
+          extensionId,
+          limit: options?.limit
+        }),
+      clearExtensionLogs: (extensionId: string) =>
+        invokeTyped<ExtensionActionResult>(invoke, CHANNELS.extensionsClearLogs, { extensionId })
     },
     agents: {
       listAgents: () => invokeTyped<readonly AgentConfig[]>(invoke, CHANNELS.agentsList),

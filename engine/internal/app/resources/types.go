@@ -21,6 +21,10 @@ func NotFound(code string, message string, userAction string) *AppError {
 	return &AppError{Status: http.StatusNotFound, Code: code, Message: message, UserAction: userAction}
 }
 
+func Internal(code string, message string, userAction string) *AppError {
+	return &AppError{Status: http.StatusInternalServerError, Code: code, Message: message, UserAction: userAction}
+}
+
 type ProviderType string
 
 const (

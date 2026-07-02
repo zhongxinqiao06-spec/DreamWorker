@@ -48,6 +48,7 @@ type ChatModelProvider struct {
 	AvailableModels []string
 	Enabled         bool
 	APIKey          string
+	APIKeyOptional  bool
 }
 
 type ChatModelProfile struct {

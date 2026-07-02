@@ -1,5 +1,33 @@
 <script setup lang="ts">
-import { LockKeyhole, MonitorCog, Shield } from 'lucide-vue-next'
+import { LockKeyhole, MonitorCog, PlugZap, Shield } from 'lucide-vue-next'
+import { useAppShellStore } from '../stores/app-shell'
+
+const appShell = useAppShellStore()
+
+function updateRunMode(event: Event): void {
+  const value = (event.target as HTMLSelectElement).value
+  void appShell.updateNineRouterSettings({
+    nineRouterRunMode: value === 'managed' ? 'managed' : 'external'
+  })
+}
+
+function updateText(
+  field: 'nineRouterBaseURL' | 'nineRouterDashboardURL' | 'nineRouterDefaultModel',
+  event: Event
+): void {
+  void appShell.updateNineRouterSettings({
+    [field]: (event.target as HTMLInputElement).value
+  })
+}
+
+function updateBoolean(
+  field: 'enableNineRouterIntegration' | 'allowAgentsUseNineRouter',
+  event: Event
+): void {
+  void appShell.updateNineRouterSettings({
+    [field]: (event.target as HTMLInputElement).checked
+  })
+}
 </script>
 
 <template>
@@ -8,8 +36,7 @@ import { LockKeyhole, MonitorCog, Shield } from 'lucide-vue-next'
       <MonitorCog :size="22" aria-hidden="true" />
       <h2>桌面工作台偏好</h2>
       <p>
-        设置区先保留本地优先、中文界面和资源隔离原则。后续接入持久化后，所有配置仍通过 Main 转发到
-        Go Engine。
+        设置区保留本地优先、中文界面和资源隔离原则。持久化后，所有配置仍通过 Main 转发到 Go Engine。
       </p>
       <label class="check-row">
         <input type="checkbox" checked disabled />
@@ -42,6 +69,61 @@ import { LockKeyhole, MonitorCog, Shield } from 'lucide-vue-next'
         API Key、MCP Secret 和远程连接令牌只允许保存在 Engine 侧。界面最多展示 hasApiKey、maskedKey
         和 maskedSecrets。
       </p>
+    </article>
+
+    <article class="panel-surface settings-card settings-extension-card">
+      <PlugZap :size="22" aria-hidden="true" />
+      <h2>9Router 拓展能力</h2>
+      <p>
+        9Router 可以作为 DreamWorker 的 OpenAI
+        兼容上游模型路由。外部服务模式只连接本机服务，受管模式由 Go Engine
+        管理安装、启动、停止、健康检查和日志。
+      </p>
+      <label>
+        运行模式
+        <select :value="appShell.settings.nineRouterRunMode" @change="updateRunMode">
+          <option value="external">外部服务</option>
+          <option value="managed">DreamWorker 受管</option>
+        </select>
+      </label>
+      <label>
+        Base URL
+        <input
+          :value="appShell.settings.nineRouterBaseURL"
+          @change="updateText('nineRouterBaseURL', $event)"
+        />
+      </label>
+      <label>
+        Dashboard URL
+        <input
+          :value="appShell.settings.nineRouterDashboardURL"
+          @change="updateText('nineRouterDashboardURL', $event)"
+        />
+      </label>
+      <label>
+        默认模型
+        <input
+          :value="appShell.settings.nineRouterDefaultModel"
+          @change="updateText('nineRouterDefaultModel', $event)"
+        />
+      </label>
+      <label class="check-row">
+        <input
+          :checked="appShell.settings.enableNineRouterIntegration"
+          type="checkbox"
+          @change="updateBoolean('enableNineRouterIntegration', $event)"
+        />
+        启用 9Router 集成
+      </label>
+      <label class="check-row">
+        <input
+          :checked="appShell.settings.allowAgentsUseNineRouter"
+          type="checkbox"
+          @change="updateBoolean('allowAgentsUseNineRouter', $event)"
+        />
+        允许 Agent 和聊天使用
+      </label>
+      <button type="button" @click="appShell.resetNineRouterSettings()">恢复默认配置</button>
     </article>
   </section>
 </template>

@@ -32,6 +32,23 @@ func RegisterWorkspaceRoutes(mux *http.ServeMux, token string, store *workspace.
 		return store.DeleteProfile(request.ProfileID)
 	})
 
+	registerGet(mux, handler, "/settings", store.GetSettings)
+	registerPost(mux, handler, "/settings/update", store.UpdateSettings)
+	registerPost(mux, handler, "/settings/reset-extension", store.ResetExtensionSettings)
+
+	registerGet(mux, handler, "/extensions", store.ListExtensions)
+	registerPost(mux, handler, "/extensions/status", store.GetExtensionStatus)
+	registerPost(mux, handler, "/extensions/detect", store.DetectExtension)
+	registerPost(mux, handler, "/extensions/install", store.InstallExtension)
+	registerPost(mux, handler, "/extensions/start", store.StartExtension)
+	registerPost(mux, handler, "/extensions/stop", store.StopExtension)
+	registerPost(mux, handler, "/extensions/restart", store.RestartExtension)
+	registerPost(mux, handler, "/extensions/test", store.TestExtension)
+	registerPost(mux, handler, "/extensions/refresh-models", store.RefreshExtensionModels)
+	registerPost(mux, handler, "/extensions/verify-streaming", store.VerifyExtensionStreaming)
+	registerPost(mux, handler, "/extensions/logs/tail", store.TailExtensionLogs)
+	registerPost(mux, handler, "/extensions/logs/clear", store.ClearExtensionLogs)
+
 	registerGet(mux, handler, "/agents", store.ListAgents)
 	registerPostID(mux, handler, "/agents/get", func(request workspace.IDRequest) (workspace.AgentConfig, *workspace.AppError) {
 		return store.GetAgent(request.AgentID)

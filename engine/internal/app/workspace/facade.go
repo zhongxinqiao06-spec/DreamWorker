@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/app/extensions"
 	"github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/app/resources"
 )
 
@@ -60,6 +61,19 @@ type ChatGatewayMessage = resources.ChatGatewayMessage
 type ModelStreamChunk = resources.ModelStreamChunk
 type ProviderHealth = resources.ProviderHealth
 type ProviderModelDiscoveryResult = resources.ProviderModelDiscoveryResult
+type AppSettings = extensions.AppSettings
+type UpdateSettingsInput = extensions.UpdateSettingsInput
+type ExtensionSpec = extensions.ExtensionSpec
+type ExtensionStatus = extensions.ExtensionStatus
+type NodeRuntimeInfo = extensions.NodeRuntimeInfo
+type ManagedProcess = extensions.ManagedProcess
+type ExtensionLogLine = extensions.ExtensionLogLine
+type InstallExtensionInput = extensions.InstallExtensionInput
+type ExtensionIDRequest = extensions.ExtensionIDRequest
+type TailLogsInput = extensions.TailLogsInput
+type ExtensionActionResult = extensions.ExtensionActionResult
+type ExtensionModelRefreshResult = extensions.ExtensionModelRefreshResult
+type ExtensionStreamingResult = extensions.ExtensionStreamingResult
 
 const (
 	ProviderOpenAICompatible ProviderType = resources.ProviderOpenAICompatible

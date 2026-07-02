@@ -63,6 +63,7 @@ func runServe(args []string, stdout io.Writer, stderr io.Writer) error {
 	store := workspace.NewStore(
 		workspace.WithTraceID(runtimeapi.NewTraceID),
 		workspace.WithModelGateway(modelgateway.NewGateway()),
+		workspace.WithConfigDir(workspace.DefaultConfigDir()),
 	)
 	return runtimeapi.ServeWithStore(ctx, *token, stdout, store)
 }

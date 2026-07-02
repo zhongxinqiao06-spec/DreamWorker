@@ -126,6 +126,143 @@ function createDreamWorkerApiStub(): DreamWorkerApi {
       })),
       deleteModelProfile: vi.fn().mockResolvedValue({ ok: true, deletedId: 'profile_fast' })
     },
+    settings: {
+      getSettings: vi.fn().mockResolvedValue({
+        enableNineRouterIntegration: true,
+        nineRouterRunMode: 'external',
+        nineRouterBaseURL: 'http://localhost:20128/v1',
+        nineRouterDashboardURL: 'http://localhost:20128',
+        nineRouterDefaultModel: 'kr/claude-sonnet-4.5',
+        nineRouterAutoDetectOnStart: true,
+        nineRouterManagedAutoStart: false,
+        nineRouterManagedAutoRestart: false,
+        nineRouterManagedInstallVersion: 'latest',
+        nineRouterManagedPackageName: '9router',
+        nineRouterManagedCommand: '9router',
+        nineRouterManagedWorkDir: '',
+        nineRouterManagedLogDir: '',
+        nineRouterManagedTimeoutMs: 30000,
+        allowNineRouterAsFreeRoute: true,
+        allowAgentsUseNineRouter: true
+      }),
+      updateSettings: vi.fn().mockImplementation(async (input) => ({
+        enableNineRouterIntegration: true,
+        nineRouterRunMode: 'external',
+        nineRouterBaseURL: 'http://localhost:20128/v1',
+        nineRouterDashboardURL: 'http://localhost:20128',
+        nineRouterDefaultModel: 'kr/claude-sonnet-4.5',
+        nineRouterAutoDetectOnStart: true,
+        nineRouterManagedAutoStart: false,
+        nineRouterManagedAutoRestart: false,
+        nineRouterManagedInstallVersion: 'latest',
+        nineRouterManagedPackageName: '9router',
+        nineRouterManagedCommand: '9router',
+        nineRouterManagedWorkDir: '',
+        nineRouterManagedLogDir: '',
+        nineRouterManagedTimeoutMs: 30000,
+        allowNineRouterAsFreeRoute: true,
+        allowAgentsUseNineRouter: true,
+        ...input
+      })),
+      resetExtensionSettings: vi.fn().mockResolvedValue({
+        enableNineRouterIntegration: true,
+        nineRouterRunMode: 'external',
+        nineRouterBaseURL: 'http://localhost:20128/v1',
+        nineRouterDashboardURL: 'http://localhost:20128',
+        nineRouterDefaultModel: 'kr/claude-sonnet-4.5',
+        nineRouterAutoDetectOnStart: true,
+        nineRouterManagedAutoStart: false,
+        nineRouterManagedAutoRestart: false,
+        nineRouterManagedInstallVersion: 'latest',
+        nineRouterManagedPackageName: '9router',
+        nineRouterManagedCommand: '9router',
+        nineRouterManagedWorkDir: '',
+        nineRouterManagedLogDir: '',
+        nineRouterManagedTimeoutMs: 30000,
+        allowNineRouterAsFreeRoute: true,
+        allowAgentsUseNineRouter: true
+      })
+    },
+    extensions: {
+      listExtensions: vi.fn().mockResolvedValue([
+        {
+          extensionId: 'extension_9router',
+          name: '9Router 本地模型路由器',
+          kind: 'node_managed_provider',
+          runtimeKind: 'node',
+          description: 'OpenAI 兼容本地模型路由',
+          install: {
+            packageName: '9router',
+            packageVersion: 'latest',
+            runtimeDir: '',
+            logDir: '',
+            configDir: ''
+          },
+          process: { defaultCommand: '9router', defaultArgs: [], port: 20128, env: [] },
+          health: {
+            dashboardURL: 'http://localhost:20128',
+            baseURL: 'http://localhost:20128/v1',
+            modelsPath: '/models',
+            chatPath: '/chat/completions'
+          },
+          providerBridge: {
+            providerId: 'provider_9router_local',
+            providerType: 'openai_compatible',
+            displayName: '9Router 免费模型路由',
+            baseURL: 'http://localhost:20128/v1',
+            defaultModel: 'kr/claude-sonnet-4.5',
+            sortOrder: 999,
+            systemPreset: true,
+            allowDeletion: false
+          },
+          capabilities: ['model_gateway'],
+          security: {
+            riskLevel: 'medium',
+            allowedHosts: ['localhost'],
+            secretKeys: ['NINEROUTER_API_KEY'],
+            envAllowList: ['PATH'],
+            managedRequiresExplicitEnable: true
+          },
+          systemPreset: true,
+          enabled: true
+        }
+      ]),
+      getExtensionStatus: vi.fn().mockResolvedValue({
+        extensionId: 'extension_9router',
+        installed: false,
+        installSource: 'none',
+        nodeAvailable: false,
+        npmAvailable: false,
+        runMode: 'external',
+        processState: 'stopped',
+        startedByDreamWorker: false,
+        baseURL: 'http://localhost:20128/v1',
+        dashboardURL: 'http://localhost:20128',
+        healthStatus: 'unknown',
+        modelCount: 1,
+        models: ['kr/claude-sonnet-4.5'],
+        streamingVerified: false,
+        hasApiKey: false,
+        logDir: '',
+        workDir: '',
+        runtime: {
+          nodeAvailable: false,
+          npmAvailable: false,
+          commandAvailable: false,
+          installSource: 'none'
+        }
+      }),
+      detectExtension: vi.fn(),
+      installExtension: vi.fn(),
+      startExtension: vi.fn(),
+      stopExtension: vi.fn(),
+      restartExtension: vi.fn(),
+      testExtension: vi.fn(),
+      refreshExtensionModels: vi.fn(),
+      verifyExtensionStreaming: vi.fn(),
+      tailExtensionLogs: vi.fn().mockResolvedValue([]),
+      clearExtensionLogs: vi.fn()
+    },
     agents: {
       listAgents: vi.fn().mockResolvedValue([
         {
@@ -319,6 +456,8 @@ function createDreamWorkerApiStub(): DreamWorkerApi {
         title: input.title,
         agentId: input.agentId,
         modelProfileId: input.modelProfileId,
+        providerId: input.providerId,
+        model: input.model,
         messageCount: 0,
         createdAt: '2026-07-01T00:00:00Z',
         updatedAt: '2026-07-01T00:00:00Z'
@@ -444,6 +583,42 @@ describe('app shell workspace state', () => {
     )
     expect(JSON.stringify(store.providers)).not.toContain('sk-test-secret')
     expect(store.providers[0]?.maskedKey).toBe('sk-t...cret')
+  })
+
+  it('switches blocked chat to a newly saved keyed provider', async () => {
+    const api = createDreamWorkerApiStub()
+    stubDreamWorkerApi(api)
+    const store = useAppShellStore()
+    await store.loadWorkspace()
+
+    const currentProvider = store.providers[0]
+    if (!currentProvider) {
+      throw new Error('expected provider fixture')
+    }
+    store.providers = [{ ...currentProvider, hasApiKey: false, maskedKey: null }]
+    expect(store.composerDisabledReason).toBe('缺少密钥')
+
+    store.newProviderDraft('openai_compatible')
+    store.providerDraft = {
+      ...store.providerDraft,
+      providerId: 'provider_custom_keyed',
+      displayName: '自定义已配置服务商',
+      baseURL: 'https://api.example.com/v1',
+      defaultModel: 'custom-chat-model',
+      availableModelsText: 'custom-chat-model',
+      apiKey: 'sk-custom-secret'
+    }
+
+    await store.saveProviderDraft()
+
+    expect(api.chat.updateSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'provider_custom_keyed',
+        model: 'custom-chat-model'
+      })
+    )
+    expect(store.activeChatProviderId).toBe('provider_custom_keyed')
+    expect(store.composerDisabledReason).toBe('')
   })
 
   it('sends chat messages through the Engine chat API', async () => {

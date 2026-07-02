@@ -71,6 +71,60 @@ func TestProvidersNeverExposeRawAPIKey(t *testing.T) {
 	}
 }
 
+func TestProviderConfigPersistsAPIKeyWithoutRendererLeak(t *testing.T) {
+	configDir := t.TempDir()
+	store := NewStore(
+		WithClock(func() string { return "2026-07-01T00:00:00Z" }),
+		WithTraceID(func() string { return "tr_test" }),
+		WithConfigDir(configDir),
+	)
+
+	provider, appErr := store.SaveProvider(SaveModelProviderInput{
+		ProviderID:      "provider_persisted",
+		ProviderType:    ProviderOpenAICompatible,
+		DisplayName:     "Persisted Provider",
+		BaseURL:         "https://api.example.com/v1",
+		DefaultModel:    "persisted-chat",
+		AvailableModels: []string{"persisted-chat"},
+		Enabled:         true,
+		APIKey:          "sk-persist-secret",
+	})
+	if appErr != nil {
+		t.Fatalf("save provider: %v", appErr)
+	}
+	payload, err := json.Marshal(provider)
+	if err != nil {
+		t.Fatalf("marshal provider: %v", err)
+	}
+	if strings.Contains(string(payload), "sk-persist-secret") {
+		t.Fatalf("safe provider leaked raw api key: %s", payload)
+	}
+	configData, err := os.ReadFile(filepath.Join(configDir, "model-providers.json"))
+	if err != nil {
+		t.Fatalf("read provider config: %v", err)
+	}
+	if !strings.Contains(string(configData), "sk-persist-secret") {
+		t.Fatalf("expected provider key to be persisted")
+	}
+
+	reloaded := NewStore(
+		WithClock(func() string { return "2026-07-01T00:00:00Z" }),
+		WithTraceID(func() string { return "tr_test" }),
+		WithConfigDir(configDir),
+	)
+	var found *SafeModelProvider
+	for _, item := range reloaded.ListProviders() {
+		if item.ProviderID == "provider_persisted" {
+			copied := item
+			found = &copied
+			break
+		}
+	}
+	if found == nil || !found.HasAPIKey || found.MaskedKey == nil || *found.MaskedKey != "sk-p...cret" {
+		t.Fatalf("expected reloaded safe provider with masked key, got %#v", found)
+	}
+}
+
 func TestDefaultModelProfilesPreferDeepSeekFastProBeforeSiliconFlow(t *testing.T) {
 	t.Setenv("DEEPSEEK_API_KEY", "sk-test-deepseek")
 	t.Setenv("SILICONFLOW_API_KEY", "sk-test-siliconflow")

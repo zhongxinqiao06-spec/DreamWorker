@@ -131,10 +131,7 @@ func bindProviderModel(
 }
 
 func ProviderHasUsableCredential(provider resources.ModelProviderRecord) bool {
-	if provider.ProviderID == "provider_local_stub" || provider.DefaultModel == "model_generate_stub" {
-		return true
-	}
-	if provider.ProviderType == resources.ProviderOllama {
+	if resources.ProviderAllowsMissingAPIKey(provider) {
 		return true
 	}
 	if provider.APIKey == "" || provider.APIKey == "sk-local-demo" {

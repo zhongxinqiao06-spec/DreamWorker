@@ -15,6 +15,21 @@ export const CHANNELS = {
   modelsListProfiles: 'models:listModelProfiles',
   modelsSaveProfile: 'models:saveModelProfile',
   modelsDeleteProfile: 'models:deleteModelProfile',
+  settingsGet: 'settings:get',
+  settingsUpdate: 'settings:update',
+  settingsResetExtension: 'settings:resetExtension',
+  extensionsList: 'extensions:list',
+  extensionsGetStatus: 'extensions:getStatus',
+  extensionsDetect: 'extensions:detect',
+  extensionsInstall: 'extensions:install',
+  extensionsStart: 'extensions:start',
+  extensionsStop: 'extensions:stop',
+  extensionsRestart: 'extensions:restart',
+  extensionsTest: 'extensions:test',
+  extensionsRefreshModels: 'extensions:refreshModels',
+  extensionsVerifyStreaming: 'extensions:verifyStreaming',
+  extensionsTailLogs: 'extensions:tailLogs',
+  extensionsClearLogs: 'extensions:clearLogs',
   agentsList: 'agents:listAgents',
   agentsGet: 'agents:getAgent',
   agentsSave: 'agents:saveAgent',
@@ -147,6 +162,155 @@ export type TestResult = {
   readonly message: string
   readonly latencyMs: number
   readonly trace_id: string
+}
+
+export type ExtensionRunMode = 'external' | 'managed'
+
+export type AppSettings = {
+  readonly enableNineRouterIntegration: boolean
+  readonly nineRouterRunMode: ExtensionRunMode
+  readonly nineRouterBaseURL: string
+  readonly nineRouterDashboardURL: string
+  readonly nineRouterDefaultModel: string
+  readonly nineRouterAutoDetectOnStart: boolean
+  readonly nineRouterManagedAutoStart: boolean
+  readonly nineRouterManagedAutoRestart: boolean
+  readonly nineRouterManagedInstallVersion: string
+  readonly nineRouterManagedPackageName: string
+  readonly nineRouterManagedCommand: string
+  readonly nineRouterManagedWorkDir: string
+  readonly nineRouterManagedLogDir: string
+  readonly nineRouterManagedTimeoutMs: number
+  readonly allowNineRouterAsFreeRoute: boolean
+  readonly allowAgentsUseNineRouter: boolean
+}
+
+export type UpdateSettingsInput = Partial<AppSettings>
+
+export type ExtensionSpec = {
+  readonly extensionId: string
+  readonly name: string
+  readonly kind: string
+  readonly runtimeKind: string
+  readonly description: string
+  readonly install: {
+    readonly packageName: string
+    readonly packageVersion: string
+    readonly runtimeDir: string
+    readonly logDir: string
+    readonly configDir: string
+  }
+  readonly process: {
+    readonly defaultCommand: string
+    readonly defaultArgs: readonly string[]
+    readonly port: number
+    readonly env: readonly string[]
+  }
+  readonly health: {
+    readonly dashboardURL: string
+    readonly baseURL: string
+    readonly modelsPath: string
+    readonly chatPath: string
+  }
+  readonly providerBridge: {
+    readonly providerId: string
+    readonly providerType: ProviderType
+    readonly displayName: string
+    readonly baseURL: string
+    readonly defaultModel: string
+    readonly sortOrder: number
+    readonly systemPreset: boolean
+    readonly allowDeletion: boolean
+  } | null
+  readonly capabilities: readonly string[]
+  readonly security: {
+    readonly riskLevel: 'low' | 'medium' | 'high'
+    readonly allowedHosts: readonly string[]
+    readonly secretKeys: readonly string[]
+    readonly envAllowList: readonly string[]
+    readonly managedRequiresExplicitEnable: boolean
+  }
+  readonly systemPreset: boolean
+  readonly enabled: boolean
+}
+
+export type NodeRuntimeInfo = {
+  readonly nodeAvailable: boolean
+  readonly npmAvailable: boolean
+  readonly nodeVersion?: string
+  readonly npmVersion?: string
+  readonly commandAvailable: boolean
+  readonly command?: string
+  readonly installSource: string
+  readonly managedLocalBin?: string
+  readonly customCommand?: string
+  readonly lastErrorCode?: string
+  readonly lastErrorMessage?: string
+}
+
+export type ExtensionStatus = {
+  readonly extensionId: string
+  readonly installed: boolean
+  readonly installSource: string
+  readonly nodeAvailable: boolean
+  readonly npmAvailable: boolean
+  readonly nodeVersion?: string
+  readonly npmVersion?: string
+  readonly command?: string
+  readonly runMode: ExtensionRunMode
+  readonly processState: string
+  readonly pid?: number
+  readonly startedByDreamWorker: boolean
+  readonly baseURL: string
+  readonly dashboardURL: string
+  readonly healthStatus: 'unknown' | 'connected' | 'disconnected' | 'error'
+  readonly modelCount: number
+  readonly models: readonly string[]
+  readonly streamingVerified: boolean
+  readonly hasApiKey: boolean
+  readonly maskedKey?: string
+  readonly logDir: string
+  readonly workDir: string
+  readonly lastStartedAt?: string
+  readonly lastStoppedAt?: string
+  readonly lastCheckedAt?: string
+  readonly lastErrorCode?: string
+  readonly lastErrorMessage?: string
+  readonly runtime: NodeRuntimeInfo
+}
+
+export type ExtensionActionResult = {
+  readonly ok: boolean
+  readonly extensionId: string
+  readonly message: string
+  readonly status: ExtensionStatus
+}
+
+export type ExtensionModelRefreshResult = {
+  readonly ok: boolean
+  readonly extensionId: string
+  readonly models: readonly string[]
+  readonly status: ExtensionStatus
+}
+
+export type ExtensionStreamingResult = {
+  readonly ok: boolean
+  readonly extensionId: string
+  readonly message: string
+  readonly latencyMs: number
+  readonly status: ExtensionStatus
+}
+
+export type ExtensionLogLine = {
+  readonly extensionId: string
+  readonly timestamp: string
+  readonly stream: string
+  readonly line: string
+}
+
+export type InstallExtensionInput = {
+  readonly extensionId: string
+  readonly version?: string
 }
 
 export type AgentRuntimeConfig = {
@@ -576,6 +740,28 @@ export type DreamWorkerApi = {
     readonly listModelProfiles: () => Promise<readonly ModelProfile[]>
     readonly saveModelProfile: (input: SaveModelProfileInput) => Promise<ModelProfile>
     readonly deleteModelProfile: (profileId: string) => Promise<DeleteResult>
+  }
+  readonly settings: {
+    readonly getSettings: () => Promise<AppSettings>
+    readonly updateSettings: (input: UpdateSettingsInput) => Promise<AppSettings>
+    readonly resetExtensionSettings: (extensionId: string) => Promise<AppSettings>
+  }
+  readonly extensions: {
+    readonly listExtensions: () => Promise<readonly ExtensionSpec[]>
+    readonly getExtensionStatus: (extensionId: string) => Promise<ExtensionStatus>
+    readonly detectExtension: (extensionId: string) => Promise<ExtensionActionResult>
+    readonly installExtension: (input: InstallExtensionInput) => Promise<ExtensionActionResult>
+    readonly startExtension: (extensionId: string) => Promise<ExtensionActionResult>
+    readonly stopExtension: (extensionId: string) => Promise<ExtensionActionResult>
+    readonly restartExtension: (extensionId: string) => Promise<ExtensionActionResult>
+    readonly testExtension: (extensionId: string) => Promise<ExtensionActionResult>
+    readonly refreshExtensionModels: (extensionId: string) => Promise<ExtensionModelRefreshResult>
+    readonly verifyExtensionStreaming: (extensionId: string) => Promise<ExtensionStreamingResult>
+    readonly tailExtensionLogs: (
+      extensionId: string,
+      options?: { readonly limit?: number }
+    ) => Promise<readonly ExtensionLogLine[]>
+    readonly clearExtensionLogs: (extensionId: string) => Promise<ExtensionActionResult>
   }
   readonly agents: {
     readonly listAgents: () => Promise<readonly AgentConfig[]>

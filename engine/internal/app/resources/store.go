@@ -18,6 +18,7 @@ type Store struct {
 	Streams          map[string]contextCancel
 	ModelGateway     ModelGateway
 	AgentDir         string
+	ConfigDir        string
 	Providers        map[string]ModelProviderRecord
 	Profiles         map[string]ModelProfile
 	Agents           map[string]AgentConfig
@@ -54,6 +55,15 @@ func WithAgentDir(agentDir string) StoreOption {
 	}
 }
 
+func WithConfigDir(configDir string) StoreOption {
+	return func(store *Store) {
+		store.ConfigDir = strings.TrimSpace(configDir)
+		if store.ConfigDir != "" {
+			store.ConfigDir = filepath.Clean(store.ConfigDir)
+		}
+	}
+}
+
 func NewStore(options ...StoreOption) *Store {
 	store := &Store{
 		Now: func() string {
@@ -65,6 +75,7 @@ func NewStore(options ...StoreOption) *Store {
 		Streams:          make(map[string]contextCancel),
 		ModelGateway:     NewLocalModelGateway(),
 		AgentDir:         defaultAgentDir(),
+		ConfigDir:        "",
 		Providers:        make(map[string]ModelProviderRecord),
 		Profiles:         make(map[string]ModelProfile),
 		Agents:           make(map[string]AgentConfig),
@@ -82,8 +93,19 @@ func NewStore(options ...StoreOption) *Store {
 		option(store)
 	}
 	store.seed()
+	store.loadProviderConfig()
 	store.loadAgentSkills()
 	return store
+}
+
+func DefaultConfigDir() string {
+	if configured := strings.TrimSpace(os.Getenv("DREAMWORKER_CONFIG_DIR")); configured != "" {
+		return filepath.Clean(configured)
+	}
+	if dir, err := os.UserConfigDir(); err == nil {
+		return filepath.Join(dir, "DreamWorker")
+	}
+	return filepath.Join(os.TempDir(), "DreamWorker")
 }
 
 func defaultAgentDir() string {

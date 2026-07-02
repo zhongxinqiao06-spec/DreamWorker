@@ -9,6 +9,8 @@ describe('preload typed API contract', () => {
     expect(Object.keys(api)).toEqual([
       'runtime',
       'models',
+      'settings',
+      'extensions',
       'agents',
       'skills',
       'tools',

@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import {
   Bot,
   Copy,
   DatabaseZap,
+  Eye,
+  EyeOff,
   KeyRound,
   Plus,
   PlugZap,
@@ -21,9 +23,16 @@ import {
   useAppShellStore,
   type ProviderTemplateId
 } from '../stores/app-shell'
-import type { ProviderStatus, ProviderType } from '../../../shared/dreamworker-api'
+import type {
+  ProviderStatus,
+  ProviderType,
+  SafeModelProvider
+} from '../../../shared/dreamworker-api'
 
 const appShell = useAppShellStore()
+const extensionPanelMode = ref<'config' | 'console'>('config')
+const extensionConsoleRevision = ref(0)
+const showProviderApiKey = ref(false)
 
 const providerLogoSrc: Record<ProviderType, string> = {
   deepseek: '/provider-icons/deepseek.svg',
@@ -57,8 +66,24 @@ const activeMcpTools = computed(() =>
   )
 )
 
+const extensionConsoleUrl = computed(() =>
+  normalizeDashboardUrl(
+    appShell.nineRouterStatus?.dashboardURL || appShell.settings.nineRouterDashboardURL
+  )
+)
+const providerApiKeyPlaceholder = computed(
+  () => appShell.activeProvider?.maskedKey ?? '留空保留当前密钥，保存后只显示脱敏值'
+)
+
 function providerInitial(providerName: string): string {
   return providerName.trim().slice(0, 1).toUpperCase() || 'AI'
+}
+
+function providerLogo(provider: SafeModelProvider): string {
+  if (provider.providerId === 'provider_9router_local') {
+    return '/provider-icons/9router.svg'
+  }
+  return providerLogoSrc[provider.providerType]
 }
 
 function statusText(status: ProviderStatus | string | undefined): string {
@@ -69,6 +94,67 @@ function statusText(status: ProviderStatus | string | undefined): string {
     return '异常'
   }
   return '未检查'
+}
+
+function extensionStateText(status: string | undefined): string {
+  const labels: Record<string, string> = {
+    unknown: '未检查',
+    connected: '已连接',
+    disconnected: '未连接',
+    error: '异常',
+    running: '运行中',
+    stopped: '已停止',
+    starting: '启动中',
+    failed: '失败'
+  }
+  return status ? (labels[status] ?? status) : '未检查'
+}
+
+function runModeText(mode: string | undefined): string {
+  return mode === 'managed' ? 'DreamWorker 受管' : '外部服务'
+}
+
+function normalizeDashboardUrl(value: string): string {
+  const trimmed = value.trim() || 'http://localhost:20128'
+  try {
+    const url = new URL(trimmed)
+    if (url.pathname === '' || url.pathname === '/') {
+      url.pathname = '/dashboard'
+    }
+    return url.toString()
+  } catch {
+    return trimmed
+  }
+}
+
+function updateNineRouterRunMode(event: Event): void {
+  const value = (event.target as HTMLSelectElement).value
+  void appShell.updateNineRouterSettings({
+    nineRouterRunMode: value === 'managed' ? 'managed' : 'external'
+  })
+}
+
+function updateNineRouterText(
+  field:
+    | 'nineRouterBaseURL'
+    | 'nineRouterDashboardURL'
+    | 'nineRouterDefaultModel'
+    | 'nineRouterManagedInstallVersion'
+    | 'nineRouterManagedCommand',
+  event: Event
+): void {
+  void appShell.updateNineRouterSettings({
+    [field]: (event.target as HTMLInputElement).value
+  })
+}
+
+function updateNineRouterBoolean(
+  field: 'enableNineRouterIntegration' | 'allowAgentsUseNineRouter',
+  event: Event
+): void {
+  void appShell.updateNineRouterSettings({
+    [field]: (event.target as HTMLInputElement).checked
+  })
 }
 
 function splitLines(value: string): string[] {
@@ -95,10 +181,33 @@ function setSkillOutputArtifacts(event: Event): void {
 function addProvider(template: ProviderTemplateId): void {
   appShell.newProviderDraft(template)
 }
+
+async function copyProviderApiKey(): Promise<void> {
+  const value = appShell.providerDraft.apiKey.trim()
+  if (!value) {
+    appShell.showResourceNotice('当前没有可复制的明文 API Key', 'info')
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(value)
+    appShell.showResourceNotice('API Key 已复制')
+  } catch {
+    appShell.showResourceNotice('复制失败，请手动选择复制', 'error')
+  }
+}
 </script>
 
 <template>
   <section class="resource-page panel-surface">
+    <div
+      v-if="appShell.resourceNotice"
+      class="resource-toast"
+      :data-tone="appShell.resourceNotice.tone"
+      role="status"
+    >
+      {{ appShell.resourceNotice.message }}
+    </div>
+
     <header class="resource-header resource-header-compact">
       <div>
         <p class="eyebrow">资源配置中心</p>
@@ -147,7 +256,7 @@ function addProvider(template: ProviderTemplateId): void {
             @click="appShell.selectProvider(provider.providerId)"
           >
             <span class="provider-logo" aria-hidden="true">
-              <img :src="providerLogoSrc[provider.providerType]" alt="" />
+              <img :src="providerLogo(provider)" alt="" />
               <b>{{ providerInitial(provider.displayName) }}</b>
             </span>
             <span class="provider-row-main">
@@ -240,17 +349,47 @@ function addProvider(template: ProviderTemplateId): void {
               </label>
               <label>
                 API Key
-                <input
-                  v-model="appShell.providerDraft.apiKey"
-                  type="password"
-                  placeholder="留空保留当前密钥，保存后只显示脱敏值"
-                />
+                <div class="secret-input-shell">
+                  <input
+                    v-model="appShell.providerDraft.apiKey"
+                    :type="showProviderApiKey ? 'text' : 'password'"
+                    :placeholder="providerApiKeyPlaceholder"
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                  <button
+                    type="button"
+                    :aria-label="showProviderApiKey ? '隐藏 API Key' : '显示 API Key'"
+                    :title="showProviderApiKey ? '隐藏 API Key' : '显示 API Key'"
+                    @click="showProviderApiKey = !showProviderApiKey"
+                  >
+                    <EyeOff v-if="showProviderApiKey" :size="17" aria-hidden="true" />
+                    <Eye v-else :size="17" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="复制当前输入的 API Key"
+                    title="复制当前输入的 API Key"
+                    @click="copyProviderApiKey"
+                  >
+                    <Copy :size="17" aria-hidden="true" />
+                  </button>
+                </div>
               </label>
             </div>
 
             <label class="provider-model-textarea">
-              可用模型清单
-              <textarea v-model="appShell.providerDraft.availableModelsText" />
+              <span class="field-label-row">
+                <span>可用模型清单</span>
+                <small
+                  >{{ splitLines(appShell.providerDraft.availableModelsText).length }} 个模型</small
+                >
+              </span>
+              <textarea
+                v-model="appShell.providerDraft.availableModelsText"
+                placeholder="每行一个模型 ID，例如 gpt-4.1 或 claude-sonnet-4-20250514"
+                spellcheck="false"
+              />
             </label>
           </section>
 
@@ -315,6 +454,218 @@ function addProvider(template: ProviderTemplateId): void {
           </aside>
         </div>
       </form>
+    </section>
+
+    <section v-else-if="appShell.activeResourceTab === 'extensions'" class="resource-grid">
+      <aside class="resource-list" aria-label="拓展能力列表">
+        <button
+          v-for="extension in appShell.extensions"
+          :key="extension.extensionId"
+          class="list-row"
+          :class="{ active: extension.extensionId === appShell.activeExtensionId }"
+          type="button"
+          @click="appShell.setActiveExtension(extension.extensionId)"
+        >
+          <strong>{{ extension.name }}</strong>
+          <span>{{ extension.kind }} / {{ extension.runtimeKind }}</span>
+          <span>{{ runModeText(appShell.extensionStatuses[extension.extensionId]?.runMode) }}</span>
+        </button>
+      </aside>
+
+      <section
+        class="editor-card extension-editor"
+        :class="{ 'extension-editor-console': extensionPanelMode === 'console' }"
+      >
+        <div class="editor-toolbar">
+          <div class="section-title">
+            <PlugZap :size="18" aria-hidden="true" />
+            <span>受管拓展能力</span>
+          </div>
+          <div class="extension-view-switch" aria-label="拓展视图切换">
+            <button
+              type="button"
+              :class="{ active: extensionPanelMode === 'config' }"
+              @click="extensionPanelMode = 'config'"
+            >
+              配置
+            </button>
+            <button
+              type="button"
+              :class="{ active: extensionPanelMode === 'console' }"
+              @click="extensionPanelMode = 'console'"
+            >
+              控制台预览
+            </button>
+          </div>
+          <div class="horizontal-actions">
+            <button
+              v-if="extensionPanelMode === 'console'"
+              type="button"
+              @click="extensionConsoleRevision += 1"
+            >
+              刷新预览
+            </button>
+            <button type="button" @click="appShell.detectActiveExtension()">检测环境</button>
+            <button type="button" @click="appShell.installActiveExtension()">安装</button>
+            <button type="button" @click="appShell.startActiveExtension()">启动</button>
+            <button type="button" @click="appShell.stopActiveExtension()">停止</button>
+            <button type="button" @click="appShell.restartActiveExtension()">重启</button>
+          </div>
+        </div>
+
+        <template v-if="extensionPanelMode === 'config'">
+          <section class="extension-log-panel" aria-label="9Router 安装与运行日志">
+            <div class="extension-log-panel-header">
+              <strong>安装与运行日志</strong>
+              <span>{{ appShell.extensionActionStatus || '等待操作' }}</span>
+            </div>
+            <div class="extension-log-list">
+              <article
+                v-for="line in appShell.extensionLogs[appShell.activeExtensionId] ?? []"
+                :key="`${line.timestamp}-${line.stream}-${line.line}`"
+              >
+                <small>{{ line.timestamp }} / {{ line.stream }}</small>
+                <span>{{ line.line }}</span>
+              </article>
+              <p v-if="(appShell.extensionLogs[appShell.activeExtensionId] ?? []).length === 0">
+                暂无日志。点击“检测环境”“安装”或“启动”后会在这里显示脱敏日志。
+              </p>
+            </div>
+          </section>
+
+          <div class="provider-editor-body">
+            <section class="provider-form-column">
+              <div class="provider-status-strip">
+                <span>{{ runModeText(appShell.nineRouterStatus?.runMode) }}</span>
+                <span>{{ extensionStateText(appShell.nineRouterStatus?.processState) }}</span>
+                <span>{{ extensionStateText(appShell.nineRouterStatus?.healthStatus) }}</span>
+                <span>{{ appShell.nineRouterStatus?.modelCount ?? 0 }} 个模型</span>
+              </div>
+
+              <div class="form-grid two provider-form-grid">
+                <label>
+                  运行模式
+                  <select
+                    :value="appShell.settings.nineRouterRunMode"
+                    @change="updateNineRouterRunMode"
+                  >
+                    <option value="external">外部服务</option>
+                    <option value="managed">DreamWorker 受管</option>
+                  </select>
+                </label>
+                <label>
+                  启用 9Router
+                  <input
+                    :checked="appShell.settings.enableNineRouterIntegration"
+                    type="checkbox"
+                    @change="updateNineRouterBoolean('enableNineRouterIntegration', $event)"
+                  />
+                </label>
+                <label>
+                  API Base URL
+                  <input
+                    :value="appShell.settings.nineRouterBaseURL"
+                    @change="updateNineRouterText('nineRouterBaseURL', $event)"
+                  />
+                </label>
+                <label>
+                  Dashboard URL
+                  <input
+                    :value="appShell.settings.nineRouterDashboardURL"
+                    @change="updateNineRouterText('nineRouterDashboardURL', $event)"
+                  />
+                </label>
+                <label>
+                  默认模型
+                  <input
+                    :value="appShell.settings.nineRouterDefaultModel"
+                    @change="updateNineRouterText('nineRouterDefaultModel', $event)"
+                  />
+                </label>
+                <label>
+                  受管版本
+                  <input
+                    :value="appShell.settings.nineRouterManagedInstallVersion"
+                    @change="updateNineRouterText('nineRouterManagedInstallVersion', $event)"
+                  />
+                </label>
+                <label>
+                  启动命令
+                  <input
+                    :value="appShell.settings.nineRouterManagedCommand"
+                    @change="updateNineRouterText('nineRouterManagedCommand', $event)"
+                  />
+                </label>
+                <label class="check-row">
+                  <input
+                    :checked="appShell.settings.allowAgentsUseNineRouter"
+                    type="checkbox"
+                    @change="updateNineRouterBoolean('allowAgentsUseNineRouter', $event)"
+                  />
+                  允许 Agent 和聊天使用
+                </label>
+              </div>
+
+              <div class="horizontal-actions">
+                <button type="button" @click="appShell.testActiveExtension()">测试连接</button>
+                <button type="button" @click="appShell.refreshActiveExtensionModels()">
+                  刷新模型
+                </button>
+                <button type="button" @click="appShell.verifyActiveExtensionStreaming()">
+                  验证流式输出
+                </button>
+                <button type="button" @click="appShell.refreshExtensionLogs(undefined, true)">
+                  查看日志
+                </button>
+                <button type="button" @click="appShell.clearActiveExtensionLogs()">清空日志</button>
+              </div>
+
+              <p class="form-hint">
+                受管模式会使用本机 Node/npm 在 DreamWorker 拓展目录安装并启动 9Router。DreamWorker
+                只管理自己启动的进程，并且只通过 OpenAI 兼容接口访问 9Router。
+              </p>
+              <p class="form-hint">{{ appShell.extensionActionStatus }}</p>
+
+              <dl class="provider-health-grid">
+                <div>
+                  <dt>Node</dt>
+                  <dd>{{ appShell.nineRouterStatus?.nodeVersion || '未检测' }}</dd>
+                </div>
+                <div>
+                  <dt>npm</dt>
+                  <dd>{{ appShell.nineRouterStatus?.npmVersion || '未检测' }}</dd>
+                </div>
+                <div>
+                  <dt>命令</dt>
+                  <dd>{{ appShell.nineRouterStatus?.command || '未检测' }}</dd>
+                </div>
+                <div>
+                  <dt>最近错误</dt>
+                  <dd>{{ appShell.nineRouterStatus?.lastErrorMessage || '无' }}</dd>
+                </div>
+              </dl>
+
+              <section class="model-preview-list provider-model-list" aria-label="9Router 模型">
+                <article v-for="model in appShell.nineRouterStatus?.models ?? []" :key="model">
+                  <DatabaseZap :size="16" aria-hidden="true" />
+                  <span>{{ model }}</span>
+                </article>
+              </section>
+            </section>
+          </div>
+        </template>
+
+        <section v-else class="extension-console-panel" aria-label="9Router Web 控制台预览">
+          <div class="extension-console-frame">
+            <iframe
+              :key="`${extensionConsoleUrl}-${extensionConsoleRevision}`"
+              :src="extensionConsoleUrl"
+              title="9Router Web 控制台"
+              sandbox="allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
+            />
+          </div>
+        </section>
+      </section>
     </section>
 
     <section v-else-if="appShell.activeResourceTab === 'agents'" class="resource-grid">

@@ -173,6 +173,7 @@ func toChatModelProvider(provider ModelProviderRecord) ports.ChatModelProvider {
 		AvailableModels: append([]string{}, provider.AvailableModels...),
 		Enabled:         provider.Enabled,
 		APIKey:          provider.APIKey,
+		APIKeyOptional:  ProviderAllowsMissingAPIKey(provider),
 	}
 }
 
@@ -197,4 +198,11 @@ func toChatModelProfile(profile ModelProfile) ports.ChatModelProfile {
 
 func ToChatModelProfile(profile ModelProfile) ports.ChatModelProfile {
 	return toChatModelProfile(profile)
+}
+
+func ProviderAllowsMissingAPIKey(provider ModelProviderRecord) bool {
+	return provider.ProviderID == "provider_local_stub" ||
+		provider.ProviderID == "provider_9router_local" ||
+		provider.DefaultModel == "model_generate_stub" ||
+		provider.ProviderType == ProviderOllama
 }
