@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { platform } from 'node:process'
 import { describe, expect, it, vi } from 'vitest'
 import {
   ENGINE_READY_TIMEOUT_MS,
@@ -86,13 +87,14 @@ describe('engine daemon bridge', () => {
   it('uses packaged engine binary and .agent resources when present', () => {
     const rootDir = mkdtempSync(join(tmpdir(), 'dreamworker-packaged-test-'))
     const engineBinDir = join(rootDir, 'engine', 'bin')
+    const executableName = platform === 'win32' ? 'dreamworker-engine.exe' : 'dreamworker-engine'
     mkdirSync(engineBinDir, { recursive: true })
     mkdirSync(join(rootDir, '.agent'), { recursive: true })
-    writeFileSync(join(engineBinDir, 'dreamworker-engine.exe'), '')
+    writeFileSync(join(engineBinDir, executableName), '')
 
     const launch = resolveEngineLaunchCommand('secret-token', rootDir)
 
-    expect(launch.command).toContain('dreamworker-engine.exe')
+    expect(launch.command).toContain(executableName)
     expect(launch.args).toEqual(['serve', '--token', 'secret-token'])
     expect(launch.env?.DREAMWORKER_AGENT_DIR).toBe(join(rootDir, '.agent'))
   })
