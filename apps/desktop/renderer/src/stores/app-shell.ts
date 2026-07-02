@@ -109,6 +109,113 @@ function resourceFailureMessage(error: unknown, fallback: string): string {
   return fallback
 }
 
+function splitDraftLines(value: string): string[] {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+}
+
+function providerDraftToSaveInput(draft: ProviderDraft): SaveModelProviderInput {
+  const input: SaveModelProviderInput = {
+    providerId: draft.providerId,
+    providerType: draft.providerType,
+    displayName: draft.displayName,
+    baseURL: draft.baseURL,
+    organization: null,
+    project: null,
+    defaultModel: draft.defaultModel,
+    availableModels: splitDraftLines(draft.availableModelsText),
+    enabled: draft.enabled,
+    capabilities: [...draft.capabilities]
+  }
+  const apiKey = draft.apiKey.trim()
+  return apiKey ? { ...input, apiKey } : input
+}
+
+function profileDraftToSaveInput(draft: ProfileDraft): SaveModelProfileInput {
+  return {
+    profileId: draft.profileId,
+    displayName: draft.displayName,
+    providerId: draft.providerId,
+    model: draft.model,
+    temperature: Number(draft.temperature),
+    maxTokens: Number(draft.maxTokens),
+    contextWindow: Number(draft.contextWindow),
+    responseFormat: draft.responseFormat,
+    toolMode: draft.toolMode,
+    fallbackProfileId: draft.fallbackProfileId,
+    timeoutMs: Number(draft.timeoutMs),
+    purpose: draft.purpose,
+    enabled: draft.enabled
+  }
+}
+
+function agentDraftToSaveInput(
+  draft: AgentDraft,
+  modelProfileId: string | undefined
+): SaveAgentInput {
+  const input: SaveAgentInput = {
+    agentId: draft.agentId,
+    displayName: draft.displayName,
+    role: draft.role,
+    description: draft.description,
+    systemPrompt: draft.systemPrompt,
+    modelProfileId: modelProfileId ?? draft.modelProfileId,
+    providerId: draft.providerId,
+    model: draft.model,
+    enabledSkills: [...draft.enabledSkills],
+    enabledTools: [...draft.enabledTools],
+    enabledMcpServers: [...draft.enabledMcpServers],
+    runtimeConfig: {
+      contextWindow: Number(draft.runtimeConfig.contextWindow),
+      temperature: Number(draft.runtimeConfig.temperature),
+      maxTokens: Number(draft.runtimeConfig.maxTokens)
+    },
+    planner: {
+      enabled: draft.planner.enabled,
+      strategy: draft.planner.strategy
+    },
+    executor: {
+      timeoutMs: Number(draft.executor.timeoutMs),
+      retryPolicy: draft.executor.retryPolicy
+    },
+    memoryScope: draft.memoryScope,
+    enabled: draft.enabled
+  }
+  return draft.builtIn === undefined ? input : { ...input, builtIn: draft.builtIn }
+}
+
+function skillDraftToSaveInput(draft: SkillDraft): SaveSkillInput {
+  const input: SaveSkillInput = {
+    skillId: draft.skillId,
+    commandName: draft.commandName,
+    displayName: draft.displayName,
+    description: draft.description,
+    whenToUse: draft.whenToUse,
+    instructions: draft.instructions,
+    category: draft.category,
+    version: draft.version,
+    enabled: draft.enabled,
+    sourcePath: draft.sourcePath,
+    requiredCapabilities: [...draft.requiredCapabilities],
+    outputArtifacts: [...draft.outputArtifacts]
+  }
+  return draft.builtIn === undefined ? input : { ...input, builtIn: draft.builtIn }
+}
+
+function toolDraftToSaveInput(draft: ToolDraft): SaveToolInput {
+  return {
+    toolId: draft.toolId,
+    displayName: draft.displayName,
+    description: draft.description,
+    category: draft.category,
+    riskLevel: draft.riskLevel,
+    enabled: draft.enabled,
+    builtIn: draft.builtIn
+  }
+}
+
 export const providerTypeOptions: readonly {
   readonly value: SaveModelProviderInput['providerType']
   readonly label: string
@@ -1055,13 +1162,9 @@ export const useAppShellStore = defineStore('app-shell', {
       this.showResourceNotice('已创建 MCP 草稿')
     },
     async saveProfileDraft(): Promise<void> {
-      const profile = await window.dreamworker.models.saveModelProfile({
-        ...this.profileDraft,
-        temperature: Number(this.profileDraft.temperature),
-        maxTokens: Number(this.profileDraft.maxTokens),
-        contextWindow: Number(this.profileDraft.contextWindow),
-        timeoutMs: Number(this.profileDraft.timeoutMs)
-      })
+      const profile = await window.dreamworker.models.saveModelProfile(
+        profileDraftToSaveInput(this.profileDraft)
+      )
       this.profiles = this.profiles.filter((item) => item.profileId !== profile.profileId)
       this.profiles.unshift(profile)
       this.selectProfile(profile.profileId)
@@ -1086,25 +1189,7 @@ export const useAppShellStore = defineStore('app-shell', {
         const missingKeyBlockedBeforeSave = this.composerDisabledReason === '缺少密钥'
         const previousChatProviderId = this.activeChatProviderId
         const previousChatModel = this.activeChatModel
-        let input: SaveModelProviderInput = {
-          providerId: this.providerDraft.providerId,
-          providerType: this.providerDraft.providerType,
-          displayName: this.providerDraft.displayName,
-          baseURL: this.providerDraft.baseURL,
-          organization: null,
-          project: null,
-          defaultModel: this.providerDraft.defaultModel,
-          availableModels: this.providerDraft.availableModelsText
-            .split(/\r?\n/)
-            .map((line) => line.trim())
-            .filter(Boolean),
-          capabilities: this.providerDraft.capabilities,
-          enabled: this.providerDraft.enabled
-        }
-        const apiKey = this.providerDraft.apiKey.trim()
-        if (apiKey) {
-          input = { ...input, apiKey }
-        }
+        const input = providerDraftToSaveInput(this.providerDraft)
         const provider = await window.dreamworker.models.saveProvider(input)
         this.providers = this.providers.filter((item) => item.providerId !== provider.providerId)
         this.providers.unshift(provider)
@@ -1185,19 +1270,9 @@ export const useAppShellStore = defineStore('app-shell', {
       const modelProfile =
         profileForProviderModel(this.profiles, this.agentDraft.providerId, this.agentDraft.model) ??
         this.activeProfile
-      const agent = await window.dreamworker.agents.saveAgent({
-        ...this.agentDraft,
-        modelProfileId: modelProfile?.profileId ?? this.agentDraft.modelProfileId,
-        runtimeConfig: {
-          contextWindow: Number(this.agentDraft.runtimeConfig.contextWindow),
-          temperature: Number(this.agentDraft.runtimeConfig.temperature),
-          maxTokens: Number(this.agentDraft.runtimeConfig.maxTokens)
-        },
-        executor: {
-          ...this.agentDraft.executor,
-          timeoutMs: Number(this.agentDraft.executor.timeoutMs)
-        }
-      })
+      const agent = await window.dreamworker.agents.saveAgent(
+        agentDraftToSaveInput(this.agentDraft, modelProfile?.profileId)
+      )
       this.agents = this.agents.filter((item) => item.agentId !== agent.agentId)
       this.agents.unshift(agent)
       this.selectAgent(agent.agentId)
@@ -1227,7 +1302,9 @@ export const useAppShellStore = defineStore('app-shell', {
       this.showResourceNotice('Agent 已删除')
     },
     async saveSkillDraft(): Promise<void> {
-      const skill = await window.dreamworker.skills.saveSkill(this.skillDraft)
+      const skill = await window.dreamworker.skills.saveSkill(
+        skillDraftToSaveInput(this.skillDraft)
+      )
       this.skills = this.skills.filter((item) => item.skillId !== skill.skillId)
       this.skills.unshift(skill)
       this.selectSkill(skill.skillId)
@@ -1247,7 +1324,7 @@ export const useAppShellStore = defineStore('app-shell', {
       this.showResourceNotice('Skill 已删除')
     },
     async saveToolDraft(): Promise<void> {
-      const tool = await window.dreamworker.tools.saveTool(this.toolDraft)
+      const tool = await window.dreamworker.tools.saveTool(toolDraftToSaveInput(this.toolDraft))
       this.tools = this.tools.filter((item) => item.toolId !== tool.toolId)
       this.tools.unshift(tool)
       this.selectTool(tool.toolId)
