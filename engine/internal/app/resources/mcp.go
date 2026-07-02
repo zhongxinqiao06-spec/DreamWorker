@@ -366,6 +366,10 @@ func writeMCPMessage(writer io.Writer, payload any) error {
 	return err
 }
 
+func WriteMCPMessage(writer io.Writer, payload any) error {
+	return writeMCPMessage(writer, payload)
+}
+
 func readMCPMessage(reader *bufio.Reader) ([]byte, error) {
 	contentLength := 0
 	for {
@@ -391,6 +395,10 @@ func readMCPMessage(reader *bufio.Reader) ([]byte, error) {
 	payload := make([]byte, contentLength)
 	_, err := io.ReadFull(reader, payload)
 	return payload, err
+}
+
+func ReadMCPMessage(reader *bufio.Reader) ([]byte, error) {
+	return readMCPMessage(reader)
 }
 
 func intID(value any) int {

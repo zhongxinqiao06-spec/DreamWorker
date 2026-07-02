@@ -9,7 +9,8 @@ func (s *Store) seed() {
 	timestamp := "2026-07-01T00:00:00Z"
 	deepseekKey := os.Getenv("DEEPSEEK_API_KEY")
 	deepseekBaseURL := envDefault("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-	deepseekModel := envDefault("DEEPSEEK_MODEL", "deepseek-v4-flash")
+	deepseekFastModel := envDefault("DEEPSEEK_FAST_MODEL", envDefault("DEEPSEEK_MODEL", "deepseek-v4-flash"))
+	deepseekProModel := envDefault("DEEPSEEK_PRO_MODEL", "deepseek-v4-pro")
 	var deepseekMasked *string
 	deepseekStatus := "unknown"
 	if deepseekKey != "" {
@@ -23,8 +24,8 @@ func (s *Store) seed() {
 			ProviderType:    ProviderDeepSeek,
 			DisplayName:     "DeepSeek 兼容服务",
 			BaseURL:         deepseekBaseURL,
-			DefaultModel:    deepseekModel,
-			AvailableModels: prependUnique(deepseekModel, []string{"deepseek-v4-flash", "deepseek-v4-pro", "deepseek-chat", "deepseek-reasoner"}),
+			DefaultModel:    deepseekFastModel,
+			AvailableModels: prependUnique(deepseekFastModel, prependUnique(deepseekProModel, []string{"deepseek-v4-flash", "deepseek-v4-pro", "deepseek-chat", "deepseek-reasoner"})),
 			Enabled:         true,
 			Status:          deepseekStatus,
 			HealthStatus:    deepseekStatus,
@@ -58,9 +59,9 @@ func (s *Store) seed() {
 	stubFallback := "profile_stub"
 	s.Profiles["profile_fast"] = ModelProfile{
 		ProfileID:         "profile_fast",
-		DisplayName:       "快速真实模型",
+		DisplayName:       "DeepSeek V4 Flash 快速",
 		ProviderID:        "provider_deepseek",
-		Model:             deepseekModel,
+		Model:             deepseekFastModel,
 		Temperature:       0.4,
 		MaxTokens:         4096,
 		ContextWindow:     128000,
@@ -68,7 +69,24 @@ func (s *Store) seed() {
 		ToolMode:          "auto",
 		FallbackProfileID: &stubFallback,
 		TimeoutMS:         120000,
-		Purpose:           "聊天、探索、短产物生成",
+		Purpose:           "聊天、探索、短产物生成，默认快速模型",
+		Enabled:           true,
+		CreatedAt:         timestamp,
+		UpdatedAt:         timestamp,
+	}
+	s.Profiles["profile_pro"] = ModelProfile{
+		ProfileID:         "profile_pro",
+		DisplayName:       "DeepSeek V4 Pro 高级",
+		ProviderID:        "provider_deepseek",
+		Model:             deepseekProModel,
+		Temperature:       0.35,
+		MaxTokens:         8192,
+		ContextWindow:     128000,
+		ResponseFormat:    "text",
+		ToolMode:          "auto",
+		FallbackProfileID: &stubFallback,
+		TimeoutMS:         180000,
+		Purpose:           "复杂规划、长文分析、关键产物生成",
 		Enabled:           true,
 		CreatedAt:         timestamp,
 		UpdatedAt:         timestamp,
@@ -152,6 +170,8 @@ func seedAgent(agentID string, displayName string, role string, description stri
 		Description:       description,
 		SystemPrompt:      systemPrompt,
 		ModelProfileID:    modelProfileID,
+		ProviderID:        seedProviderIDForProfile(modelProfileID),
+		Model:             seedModelForProfile(modelProfileID),
 		EnabledSkills:     skills,
 		EnabledTools:      tools,
 		EnabledMCPServers: mcpServers,
@@ -163,6 +183,30 @@ func seedAgent(agentID string, displayName string, role string, description stri
 		BuiltIn:           true,
 		CreatedAt:         timestamp,
 		UpdatedAt:         timestamp,
+	}
+}
+
+func seedProviderIDForProfile(profileID string) string {
+	switch profileID {
+	case "profile_stub":
+		return "provider_local_stub"
+	case "profile_siliconflow":
+		return "provider_siliconflow"
+	default:
+		return "provider_deepseek"
+	}
+}
+
+func seedModelForProfile(profileID string) string {
+	switch profileID {
+	case "profile_pro":
+		return "deepseek-v4-pro"
+	case "profile_stub":
+		return "model_generate_stub"
+	case "profile_siliconflow":
+		return "deepseek-ai/DeepSeek-V4-Flash"
+	default:
+		return "deepseek-v4-flash"
 	}
 }
 

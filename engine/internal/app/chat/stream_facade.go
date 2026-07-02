@@ -1,5 +1,3 @@
-//go:build dreamworker_split_experiment
-
 package chat
 
 import (

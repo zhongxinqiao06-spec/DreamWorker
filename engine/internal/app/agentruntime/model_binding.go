@@ -19,6 +19,17 @@ func ResolveChatModelBinding(
 	session resources.ChatSession,
 	agent resources.AgentConfig,
 ) (resources.ModelProfile, resources.ModelProviderRecord, string, *resources.AppError) {
+	if shouldBindProviderModel(session.ModelProfileID, session.ProviderID, session.Model) {
+		if profile, provider, ok := bindProviderModel(state, session.ProviderID, session.Model); ok {
+			return profile, provider, "", nil
+		}
+	}
+	if shouldBindProviderModel(agent.ModelProfileID, agent.ProviderID, agent.Model) {
+		if profile, provider, ok := bindProviderModel(state, agent.ProviderID, agent.Model); ok {
+			return profile, provider, "", nil
+		}
+	}
+
 	seen := map[string]bool{}
 	var skipped []string
 	var candidates []string
@@ -75,6 +86,48 @@ func ResolveChatModelBinding(
 		"没有可用的模型配置",
 		"请配置供应商 API Key，或切换到本地 Stub 模型",
 	)
+}
+
+func shouldBindProviderModel(profileID string, providerID string, model string) bool {
+	providerID = strings.TrimSpace(providerID)
+	model = strings.TrimSpace(model)
+	if providerID == "" {
+		return false
+	}
+	profileID = strings.TrimSpace(profileID)
+	if profileID == "" {
+		return true
+	}
+	return profileID == resources.ProfileIDForProviderModel(providerID, model)
+}
+
+func bindProviderModel(
+	state *resources.Store,
+	providerID string,
+	model string,
+) (resources.ModelProfile, resources.ModelProviderRecord, bool) {
+	providerID = strings.TrimSpace(providerID)
+	model = strings.TrimSpace(model)
+	if providerID == "" {
+		return resources.ModelProfile{}, resources.ModelProviderRecord{}, false
+	}
+	provider, ok := state.Providers[providerID]
+	if !ok || !provider.Enabled || !ProviderHasUsableCredential(provider) {
+		return resources.ModelProfile{}, resources.ModelProviderRecord{}, false
+	}
+	if model == "" {
+		model = provider.DefaultModel
+	}
+	profileID := resources.ProfileIDForProviderModel(providerID, model)
+	profile, ok := state.Profiles[profileID]
+	if !ok {
+		profile = resources.ProfileFromProviderModel(provider, model, state.Now())
+		state.Profiles[profile.ProfileID] = profile
+	}
+	if !profile.Enabled {
+		return resources.ModelProfile{}, resources.ModelProviderRecord{}, false
+	}
+	return resources.EnsureModelProfileDefaults(profile), provider, true
 }
 
 func ProviderHasUsableCredential(provider resources.ModelProviderRecord) bool {

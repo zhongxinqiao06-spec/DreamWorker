@@ -257,6 +257,8 @@ function createProfileDraft(profile?: ModelProfile, provider?: SafeModelProvider
 }
 
 function createAgentDraft(agent?: AgentConfig, profile?: ModelProfile): AgentDraft {
+  const providerId = agent?.providerId || profile?.providerId || 'provider_deepseek'
+  const model = agent?.model || profile?.model || 'deepseek-v4-flash'
   return {
     agentId: agent?.agentId ?? `agent_custom_${Date.now()}`,
     displayName: agent?.displayName ?? '自定义 Agent',
@@ -264,6 +266,8 @@ function createAgentDraft(agent?: AgentConfig, profile?: ModelProfile): AgentDra
     description: agent?.description ?? '处理当前项目中的专门任务。',
     systemPrompt: agent?.systemPrompt ?? '你是 DreamWorker 的专业 Agent，优先用中文清晰回答。',
     modelProfileId: agent?.modelProfileId ?? profile?.profileId ?? 'profile_fast',
+    providerId,
+    model,
     enabledSkills: [...(agent?.enabledSkills ?? [])],
     enabledTools: [...(agent?.enabledTools ?? [])],
     enabledMcpServers: [...(agent?.enabledMcpServers ?? [])],
@@ -363,6 +367,18 @@ function preferDeepSeekProfile(
   )
 }
 
+function profileForProviderModel(
+  profiles: ModelProfile[],
+  providerId: string,
+  model: string
+): ModelProfile | undefined {
+  return (
+    profiles.find((profile) => profile.providerId === providerId && profile.model === model) ??
+    profiles.find((profile) => profile.providerId === providerId) ??
+    preferDeepSeekProfile(profiles, providerId)
+  )
+}
+
 export const useAppShellStore = defineStore('app-shell', {
   state: () => ({
     primaryNavItems,
@@ -435,6 +451,15 @@ export const useAppShellStore = defineStore('app-shell', {
     activeProfile: (state): ModelProfile | undefined =>
       state.profiles.find((profile) => profile.profileId === state.activeProfileId) ??
       preferDeepSeekProfile(state.profiles, state.activeProviderId),
+    modelsForProvider:
+      (state) =>
+      (providerId: string): readonly string[] =>
+        state.providers.find((provider) => provider.providerId === providerId)?.availableModels ??
+        [],
+    providerModelProfile:
+      (state) =>
+      (providerId: string, model: string): ModelProfile | undefined =>
+        profileForProviderModel(state.profiles, providerId, model),
     activeAgent: (state): AgentConfig | undefined =>
       state.agents.find((agent) => agent.agentId === state.activeAgentId) ?? state.agents[0],
     activeSkill: (state): SkillConfig | undefined =>
@@ -473,6 +498,46 @@ export const useAppShellStore = defineStore('app-shell', {
       state.agents.find((agent) => agent.agentId === state.activeAgentId)?.modelProfileId ??
       preferDeepSeekProfile(state.profiles, state.activeProviderId)?.profileId ??
       'profile_fast',
+    activeChatProviderId: (state): string => {
+      const session =
+        state.chatSessions.find((item) => item.sessionId === state.activeChatSessionId) ??
+        state.chatSessions[0]
+      if (session?.providerId) {
+        return session.providerId
+      }
+      const agent = state.agents.find(
+        (item) => item.agentId === (session?.agentId ?? state.activeAgentId)
+      )
+      if (agent?.providerId) {
+        return agent.providerId
+      }
+      const profile = state.profiles.find(
+        (item) => item.profileId === (session?.modelProfileId ?? agent?.modelProfileId)
+      )
+      return profile?.providerId ?? state.activeProviderId ?? 'provider_deepseek'
+    },
+    activeChatModel: (state): string => {
+      const session =
+        state.chatSessions.find((item) => item.sessionId === state.activeChatSessionId) ??
+        state.chatSessions[0]
+      if (session?.model) {
+        return session.model
+      }
+      const agent = state.agents.find(
+        (item) => item.agentId === (session?.agentId ?? state.activeAgentId)
+      )
+      if (agent?.model) {
+        return agent.model
+      }
+      const profile = state.profiles.find(
+        (item) => item.profileId === (session?.modelProfileId ?? agent?.modelProfileId)
+      )
+      const provider = state.providers.find(
+        (item) =>
+          item.providerId === (session?.providerId ?? agent?.providerId ?? profile?.providerId)
+      )
+      return profile?.model ?? provider?.defaultModel ?? 'deepseek-v4-flash'
+    },
     activeChatProjectId: (state): string =>
       (
         state.chatSessions.find((session) => session.sessionId === state.activeChatSessionId) ??
@@ -486,12 +551,11 @@ export const useAppShellStore = defineStore('app-shell', {
         state.chatSessions[0]
       const agent = state.agents.find((item) => item.agentId === session?.agentId)
       const profile = state.profiles.find((item) => item.profileId === session?.modelProfileId)
-      const provider = state.providers.find((item) => item.providerId === profile?.providerId)
+      const providerId = session?.providerId || agent?.providerId || profile?.providerId
+      const model = session?.model || agent?.model || profile?.model
+      const provider = state.providers.find((item) => item.providerId === providerId)
       if (!agent || !agent.enabled) {
         return '无可用 Agent'
-      }
-      if (!profile || !profile.enabled) {
-        return '无可用模型配置'
       }
       if (!provider || !provider.enabled) {
         return '服务商已停用'
@@ -503,7 +567,7 @@ export const useAppShellStore = defineStore('app-shell', {
       ) {
         return '缺少密钥'
       }
-      if (provider.modelCount === 0 && !provider.defaultModel) {
+      if (!model && provider.modelCount === 0 && !provider.defaultModel) {
         return '模型不可用'
       }
       return ''
@@ -626,6 +690,9 @@ export const useAppShellStore = defineStore('app-shell', {
         return
       }
       this.activeAgentId = session.agentId
+      if (session.providerId) {
+        this.activeProviderId = session.providerId
+      }
       if (session.projectId) {
         this.activeProjectId = session.projectId
       }
@@ -680,6 +747,29 @@ export const useAppShellStore = defineStore('app-shell', {
       this.agentDraft = createAgentDraft(undefined, this.activeProfile)
       this.activeAgentId = ''
       this.providerActionStatus = '已创建 Agent 草稿，保存后生效'
+    },
+    setAgentDraftProvider(providerId: string): void {
+      const provider = this.providers.find((item) => item.providerId === providerId)
+      this.agentDraft = {
+        ...this.agentDraft,
+        providerId,
+        model: provider?.defaultModel ?? provider?.availableModels[0] ?? '',
+        modelProfileId:
+          profileForProviderModel(
+            this.profiles,
+            providerId,
+            provider?.defaultModel ?? provider?.availableModels[0] ?? ''
+          )?.profileId ?? this.agentDraft.modelProfileId
+      }
+    },
+    setAgentDraftModel(model: string): void {
+      this.agentDraft = {
+        ...this.agentDraft,
+        model,
+        modelProfileId:
+          profileForProviderModel(this.profiles, this.agentDraft.providerId, model)?.profileId ??
+          this.agentDraft.modelProfileId
+      }
     },
     selectSkill(skillId: string): void {
       this.activeSkillId = skillId
@@ -807,8 +897,12 @@ export const useAppShellStore = defineStore('app-shell', {
       this.providerActionStatus = `已自动获取 ${provider.availableModels.length} 个模型`
     },
     async saveAgentDraft(): Promise<void> {
+      const modelProfile =
+        profileForProviderModel(this.profiles, this.agentDraft.providerId, this.agentDraft.model) ??
+        this.activeProfile
       const agent = await window.dreamworker.agents.saveAgent({
         ...this.agentDraft,
+        modelProfileId: modelProfile?.profileId ?? this.agentDraft.modelProfileId,
         runtimeConfig: {
           contextWindow: Number(this.agentDraft.runtimeConfig.contextWindow),
           temperature: Number(this.agentDraft.runtimeConfig.temperature),
@@ -1023,11 +1117,16 @@ export const useAppShellStore = defineStore('app-shell', {
       )
     },
     async createChatSession(): Promise<void> {
+      const providerId = this.activeChatProviderId
+      const model = this.activeChatModel
+      const profile = profileForProviderModel(this.profiles, providerId, model)
       const session = await window.dreamworker.chat.createSession({
         projectId: this.activeProjectId || null,
         title: '新的 Agent 对话',
         agentId: this.activeAgentId,
-        modelProfileId: this.activeChatModelProfileId
+        modelProfileId: profile?.profileId ?? this.activeChatModelProfileId,
+        providerId,
+        model
       })
       this.chatSessions.unshift(session)
       this.activeChatSessionId = session.sessionId
@@ -1063,6 +1162,8 @@ export const useAppShellStore = defineStore('app-shell', {
     async updateActiveChatSessionBinding(input: {
       agentId?: string
       modelProfileId?: string
+      providerId?: string
+      model?: string
       projectId?: string | null
     }): Promise<void> {
       const session = this.activeChatSession
@@ -1073,14 +1174,22 @@ export const useAppShellStore = defineStore('app-shell', {
         if (input.projectId) {
           this.activeProjectId = input.projectId
         }
+        if (input.providerId) {
+          this.activeProviderId = input.providerId
+        }
         return
       }
+      const providerId = input.providerId ?? session.providerId ?? this.activeChatProviderId
+      const model = input.model ?? session.model ?? this.activeChatModel
+      const profile = profileForProviderModel(this.profiles, providerId, model)
       const updated = await window.dreamworker.chat.updateSession({
         sessionId: session.sessionId,
         title: session.title,
         projectId: input.projectId !== undefined ? input.projectId : session.projectId,
         agentId: input.agentId ?? session.agentId,
-        modelProfileId: input.modelProfileId ?? session.modelProfileId
+        modelProfileId: input.modelProfileId ?? profile?.profileId ?? session.modelProfileId,
+        providerId,
+        model
       })
       this.chatSessions = this.chatSessions.map((item) =>
         item.sessionId === updated.sessionId ? updated : item
@@ -1094,6 +1203,14 @@ export const useAppShellStore = defineStore('app-shell', {
     },
     async setActiveChatModelProfile(modelProfileId: string): Promise<void> {
       await this.updateActiveChatSessionBinding({ modelProfileId })
+    },
+    async setActiveChatProvider(providerId: string): Promise<void> {
+      const provider = this.providers.find((item) => item.providerId === providerId)
+      const model = provider?.defaultModel ?? provider?.availableModels[0] ?? ''
+      await this.updateActiveChatSessionBinding({ providerId, model })
+    },
+    async setActiveChatModel(model: string): Promise<void> {
+      await this.updateActiveChatSessionBinding({ providerId: this.activeChatProviderId, model })
     },
     async setActiveChatProject(projectId: string): Promise<void> {
       const normalizedProjectId = projectId || null
@@ -1150,7 +1267,7 @@ export const useAppShellStore = defineStore('app-shell', {
       this.chatStreamError = ''
       this.chatStreamTraceId = streamId
       this.chatRuntimeProvider = ''
-      this.chatRuntimeModel = this.activeChatModelProfileId
+      this.chatRuntimeModel = this.activeChatModel
       this.chatRuntimeLatencyMs = 0
       this.chatRuntimeFinishReason = ''
       this.chatContextBudget = createEmptyContextBudget()
@@ -1192,7 +1309,7 @@ export const useAppShellStore = defineStore('app-shell', {
           content: '',
           status: 'streaming',
           providerId: '',
-          model: this.activeChatModelProfileId,
+          model: this.activeChatModel,
           usage: null,
           finishReason: '',
           runtimeSummary: '',
@@ -1484,7 +1601,7 @@ export const useAppShellStore = defineStore('app-shell', {
     },
     runCommand(target: PrimaryNavId | ResourceTabId): void {
       this.commandOpen = false
-      if (target === 'providers' || target === 'profiles' || target === 'agents') {
+      if (target === 'providers' || target === 'agents') {
         this.setPrimary('resources')
         this.setResourceTab(target)
         return

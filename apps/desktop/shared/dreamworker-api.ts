@@ -172,6 +172,8 @@ export type AgentConfig = {
   readonly description: string
   readonly systemPrompt: string
   readonly modelProfileId: string
+  readonly providerId: string
+  readonly model: string
   readonly enabledSkills: readonly string[]
   readonly enabledTools: readonly string[]
   readonly enabledMcpServers: readonly string[]
@@ -334,6 +336,8 @@ export type ChatSession = {
   readonly title: string
   readonly agentId: string
   readonly modelProfileId: string
+  readonly providerId: string
+  readonly model: string
   readonly messageCount: number
   readonly createdAt: string
   readonly updatedAt: string
@@ -344,6 +348,8 @@ export type CreateChatSessionInput = {
   readonly title: string
   readonly agentId: string
   readonly modelProfileId: string
+  readonly providerId?: string
+  readonly model?: string
 }
 
 export type UpdateChatSessionInput = CreateChatSessionInput & {

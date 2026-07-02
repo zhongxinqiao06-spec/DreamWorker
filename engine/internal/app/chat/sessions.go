@@ -1,5 +1,3 @@
-//go:build dreamworker_split_experiment
-
 package chat
 
 import (
@@ -9,24 +7,14 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/app/resources"
 )
 
 func (s *Store) ListChatSessions() []ChatSession {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 	return sortedValues(s.Sessions, func(item ChatSession) string { return item.Title })
-}
-
-func (s *Store) ListChatMessages(sessionID string) ([]ChatMessage, *AppError) {
-	if sessionID == "" {
-		return nil, BadRequest("BAD_REQUEST", "missing sessionId", "select a chat session")
-	}
-	s.Mu.Lock()
-	defer s.Mu.Unlock()
-	if _, ok := s.Sessions[sessionID]; !ok {
-		return nil, NotFound("SESSION_NOT_FOUND", "session not found", "create a new chat session")
-	}
-	return append([]ChatMessage{}, s.Messages[sessionID]...), nil
 }
 
 func (s *Store) CreateChatSession(input CreateChatSessionInput) (ChatSession, *AppError) {
@@ -36,12 +24,15 @@ func (s *Store) CreateChatSession(input CreateChatSessionInput) (ChatSession, *A
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 	now := s.Now()
+	modelProfileID, providerID, model := s.ensureChatModelDefaultsLocked(input.ModelProfileID, input.ProviderID, input.Model)
 	session := ChatSession{
 		SessionID:      s.NextIDLocked("chat"),
 		ProjectID:      input.ProjectID,
 		Title:          input.Title,
 		AgentID:        fallback(input.AgentID, "agent_general_assistant"),
-		ModelProfileID: fallback(input.ModelProfileID, "profile_fast"),
+		ModelProfileID: modelProfileID,
+		ProviderID:     providerID,
+		Model:          model,
 		MessageCount:   0,
 		CreatedAt:      now,
 		UpdatedAt:      now,
@@ -73,10 +64,24 @@ func (s *Store) UpdateChatSession(input UpdateChatSessionInput) (ChatSession, *A
 		session.AgentID = input.AgentID
 	}
 	if input.ModelProfileID != "" {
-		if _, ok := s.Profiles[input.ModelProfileID]; !ok {
+		profile, ok := s.Profiles[input.ModelProfileID]
+		if !ok {
 			return ChatSession{}, NotFound("MODEL_PROFILE_NOT_FOUND", "model profile not found", "refresh profiles")
 		}
 		session.ModelProfileID = input.ModelProfileID
+		session.ProviderID = profile.ProviderID
+		session.Model = profile.Model
+	}
+	if input.ProviderID != "" || input.Model != "" {
+		modelProfileID, providerID, model := s.ensureChatModelDefaultsLocked(session.ModelProfileID, input.ProviderID, input.Model)
+		session.ModelProfileID = modelProfileID
+		session.ProviderID = providerID
+		session.Model = model
+	} else if session.ProviderID == "" || session.Model == "" {
+		modelProfileID, providerID, model := s.ensureChatModelDefaultsLocked(session.ModelProfileID, "", "")
+		session.ModelProfileID = modelProfileID
+		session.ProviderID = providerID
+		session.Model = model
 	}
 	if strings.TrimSpace(input.Title) != "" {
 		session.Title = strings.TrimSpace(input.Title)
@@ -85,6 +90,32 @@ func (s *Store) UpdateChatSession(input UpdateChatSessionInput) (ChatSession, *A
 	session.UpdatedAt = s.Now()
 	s.Sessions[input.SessionID] = session
 	return session, nil
+}
+
+func (s *Store) ensureChatModelDefaultsLocked(profileID string, providerID string, model string) (string, string, string) {
+	providerID = strings.TrimSpace(providerID)
+	model = strings.TrimSpace(model)
+	if providerID != "" {
+		if provider, ok := s.Providers[providerID]; ok {
+			if model == "" {
+				model = provider.DefaultModel
+			}
+			nextProfileID := resources.ProfileIDForProviderModel(providerID, model)
+			if _, ok := s.Profiles[nextProfileID]; !ok {
+				s.Profiles[nextProfileID] = resources.ProfileFromProviderModel(provider, model, s.Now())
+			}
+			return nextProfileID, providerID, model
+		}
+	}
+	profileID = fallback(profileID, "profile_fast")
+	if profile, ok := s.Profiles[profileID]; ok {
+		return profile.ProfileID, profile.ProviderID, profile.Model
+	}
+	if provider, ok := s.Providers["provider_deepseek"]; ok {
+		model = provider.DefaultModel
+		return resources.ProfileIDForProviderModel(provider.ProviderID, model), provider.ProviderID, model
+	}
+	return "profile_fast", "provider_deepseek", "deepseek-v4-flash"
 }
 
 func (s *Store) SendChatMessage(input SendChatMessageInput) (ChatTurnResult, *AppError) {
@@ -472,7 +503,7 @@ func (s *Store) completeStreamMessage(
 		ContextSummary:  firstContextSummary(contextPack),
 		ContextBudget:   contextPack.Budget,
 		AuditSummary:    audit,
-		ProviderStatus:  provider.safe().Status,
+		ProviderStatus:  provider.Safe().Status,
 		RuntimeSnapshot: runtimeSummary,
 		RuntimeSummary:  runtimeSummary,
 	}

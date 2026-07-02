@@ -1,5 +1,3 @@
-//go:build dreamworker_split_experiment
-
 package projects
 
 func createProjectModules(projectID string) map[string]ProjectModule {

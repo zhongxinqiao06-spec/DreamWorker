@@ -3,7 +3,7 @@ import type { ProjectModuleId, ProjectModuleStatus } from '../../../shared/dream
 export type ModuleWorkspaceId = ProjectModuleId
 export type PrimaryNavId =
   'chat' | 'projects' | 'resources' | ModuleWorkspaceId | 'settings' | 'diagnostics'
-export type ResourceTabId = 'providers' | 'profiles' | 'agents' | 'skills' | 'tools' | 'mcp'
+export type ResourceTabId = 'providers' | 'agents' | 'skills' | 'tools' | 'mcp'
 
 export type PrimaryNavItem = {
   readonly id: PrimaryNavId
@@ -35,7 +35,6 @@ export const resourceTabs: readonly {
   readonly label: string
 }[] = [
   { id: 'providers', label: '模型服务商' },
-  { id: 'profiles', label: '模型配置' },
   { id: 'agents', label: 'Agent' },
   { id: 'skills', label: 'Skill' },
   { id: 'tools', label: '工具' },

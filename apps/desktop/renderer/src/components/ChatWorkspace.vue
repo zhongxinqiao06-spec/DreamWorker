@@ -66,10 +66,10 @@ const runtimeStateText = computed(() => {
   return attemptStatusText(appShell.chatRuntimeAttemptStatus)
 })
 const activeModelLabel = computed(() => {
-  const profile = appShell.profiles.find(
-    (item) => item.profileId === appShell.activeChatModelProfileId
+  const provider = appShell.providers.find(
+    (item) => item.providerId === appShell.activeChatProviderId
   )
-  return profile ? `${profile.displayName} / ${profile.model}` : appShell.activeChatModelProfileId
+  return `${provider?.displayName ?? '模型服务'} / ${appShell.activeChatModel}`
 })
 const activeSessionTitle = computed(() => appShell.activeChatSession?.title ?? '新的 Agent 对话')
 const chatThreadScrollSignature = computed(() =>
@@ -331,9 +331,17 @@ function sessionAgentName(agentId: string): string {
   return appShell.agents.find((agent) => agent.agentId === agentId)?.displayName ?? agentId
 }
 
-function sessionModelName(profileId: string): string {
-  const profile = appShell.profiles.find((item) => item.profileId === profileId)
-  return profile ? profile.displayName : profileId
+function sessionModelName(session: {
+  modelProfileId: string
+  providerId?: string
+  model?: string
+}): string {
+  if (session.providerId || session.model) {
+    const provider = appShell.providers.find((item) => item.providerId === session.providerId)
+    return `${provider?.displayName ?? session.providerId ?? '模型服务'} / ${session.model ?? ''}`
+  }
+  const profile = appShell.profiles.find((item) => item.profileId === session.modelProfileId)
+  return profile ? `${profile.providerId} / ${profile.model}` : session.modelProfileId
 }
 
 function formatSessionTime(value: string): string {
@@ -488,7 +496,7 @@ onBeforeUnmount(() => {
             >
           </span>
           <time :datetime="session.updatedAt">{{ formatSessionTime(session.updatedAt) }}</time>
-          <small class="session-model">{{ sessionModelName(session.modelProfileId) }}</small>
+          <small class="session-model">{{ sessionModelName(session) }}</small>
         </button>
       </div>
     </aside>
@@ -538,18 +546,34 @@ onBeforeUnmount(() => {
           </select>
         </label>
         <label>
-          模型
+          服务商
           <select
-            :value="appShell.activeChatModelProfileId"
+            :value="appShell.activeChatProviderId"
             :disabled="appShell.activeSessionStreaming"
-            @change="appShell.setActiveChatModelProfile(($event.target as HTMLSelectElement).value)"
+            @change="appShell.setActiveChatProvider(($event.target as HTMLSelectElement).value)"
           >
             <option
-              v-for="profile in appShell.profiles"
-              :key="profile.profileId"
-              :value="profile.profileId"
+              v-for="provider in appShell.providers"
+              :key="provider.providerId"
+              :value="provider.providerId"
             >
-              {{ profile.displayName }} / {{ profile.model }}
+              {{ provider.displayName }}
+            </option>
+          </select>
+        </label>
+        <label>
+          模型
+          <select
+            :value="appShell.activeChatModel"
+            :disabled="appShell.activeSessionStreaming"
+            @change="appShell.setActiveChatModel(($event.target as HTMLSelectElement).value)"
+          >
+            <option
+              v-for="model in appShell.modelsForProvider(appShell.activeChatProviderId)"
+              :key="model"
+              :value="model"
+            >
+              {{ model }}
             </option>
           </select>
         </label>
@@ -784,7 +808,7 @@ onBeforeUnmount(() => {
             <dd>{{ appShell.activeAgent?.role }}</dd>
           </div>
           <div>
-            <dt>模型配置</dt>
+            <dt>模型</dt>
             <dd>{{ activeModelLabel }}</dd>
           </div>
           <div>

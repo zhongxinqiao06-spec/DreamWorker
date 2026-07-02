@@ -124,6 +124,8 @@ type AgentConfig struct {
 	Description       string              `json:"description"`
 	SystemPrompt      string              `json:"systemPrompt"`
 	ModelProfileID    string              `json:"modelProfileId"`
+	ProviderID        string              `json:"providerId"`
+	Model             string              `json:"model"`
 	EnabledSkills     []string            `json:"enabledSkills"`
 	EnabledTools      []string            `json:"enabledTools"`
 	EnabledMCPServers []string            `json:"enabledMcpServers"`
@@ -273,6 +275,8 @@ type ChatSession struct {
 	Title          string  `json:"title"`
 	AgentID        string  `json:"agentId"`
 	ModelProfileID string  `json:"modelProfileId"`
+	ProviderID     string  `json:"providerId"`
+	Model          string  `json:"model"`
 	MessageCount   int     `json:"messageCount"`
 	CreatedAt      string  `json:"createdAt"`
 	UpdatedAt      string  `json:"updatedAt"`
@@ -283,6 +287,8 @@ type CreateChatSessionInput struct {
 	Title          string  `json:"title"`
 	AgentID        string  `json:"agentId"`
 	ModelProfileID string  `json:"modelProfileId"`
+	ProviderID     string  `json:"providerId"`
+	Model          string  `json:"model"`
 }
 
 type UpdateChatSessionInput struct {
@@ -291,6 +297,8 @@ type UpdateChatSessionInput struct {
 	Title          string  `json:"title"`
 	AgentID        string  `json:"agentId"`
 	ModelProfileID string  `json:"modelProfileId"`
+	ProviderID     string  `json:"providerId"`
+	Model          string  `json:"model"`
 }
 
 type ChatMessage struct {

@@ -1,5 +1,7 @@
 package resources
 
+import "strings"
+
 func (s *Store) ListAgents() []AgentConfig {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
@@ -34,9 +36,41 @@ func (s *Store) SaveAgent(input AgentConfig) (AgentConfig, *AppError) {
 		input.BuiltIn = existing.BuiltIn
 	}
 	input = ensureAgentRuntimeDefaults(input)
+	input = s.ensureAgentModelDefaultsLocked(input)
 	input.UpdatedAt = now
 	s.Agents[input.AgentID] = input
 	return input, nil
+}
+
+func (s *Store) ensureAgentModelDefaultsLocked(agent AgentConfig) AgentConfig {
+	providerID := strings.TrimSpace(agent.ProviderID)
+	model := strings.TrimSpace(agent.Model)
+	if providerID != "" {
+		if provider, ok := s.Providers[providerID]; ok {
+			if model == "" {
+				model = provider.DefaultModel
+			}
+			profileID := ProfileIDForProviderModel(providerID, model)
+			if _, ok := s.Profiles[profileID]; !ok {
+				s.Profiles[profileID] = ProfileFromProviderModel(provider, model, s.Now())
+			}
+			agent.ModelProfileID = profileID
+			agent.ProviderID = providerID
+			agent.Model = model
+			return agent
+		}
+	}
+	if profile, ok := s.Profiles[agent.ModelProfileID]; ok {
+		agent.ProviderID = profile.ProviderID
+		agent.Model = profile.Model
+		return agent
+	}
+	if provider, ok := s.Providers["provider_deepseek"]; ok {
+		agent.ProviderID = provider.ProviderID
+		agent.Model = provider.DefaultModel
+		agent.ModelProfileID = ProfileIDForProviderModel(provider.ProviderID, provider.DefaultModel)
+	}
+	return agent
 }
 
 func (s *Store) DuplicateAgent(agentID string) (AgentConfig, *AppError) {
@@ -92,120 +126,4 @@ func ensureAgentRuntimeDefaults(agent AgentConfig) AgentConfig {
 		agent.MemoryScope = "project"
 	}
 	return agent
-}
-
-func (s *Store) ListSkills() []SkillConfig {
-	s.Mu.Lock()
-	defer s.Mu.Unlock()
-	return sortedValues(s.Skills, func(item SkillConfig) string { return item.DisplayName })
-}
-
-func (s *Store) GetSkill(skillID string) (SkillConfig, *AppError) {
-	if skillID == "" {
-		return SkillConfig{}, BadRequest("BAD_REQUEST", "缺少 skillId。", "请选择要查看的 Skill。")
-	}
-	s.Mu.Lock()
-	defer s.Mu.Unlock()
-	skill, ok := s.Skills[skillID]
-	if !ok {
-		return SkillConfig{}, NotFound("SKILL_NOT_FOUND", "Skill 不存在。", "请刷新 Skill 列表。")
-	}
-	return skill, nil
-}
-
-func (s *Store) SaveSkill(input SkillConfig) (SkillConfig, *AppError) {
-	if input.SkillID == "" {
-		return SkillConfig{}, BadRequest("BAD_REQUEST", "Skill 配置格式无效。", "请检查 skillId 和输出产物。")
-	}
-	input = ensureSkillDefaults(input)
-	s.Mu.Lock()
-	if existing, ok := s.Skills[input.SkillID]; ok {
-		input.BuiltIn = existing.BuiltIn
-		if input.SourcePath == "" {
-			input.SourcePath = existing.SourcePath
-		}
-	}
-	s.Mu.Unlock()
-	written, err := s.writeAgentSkillFile(input)
-	if err != nil {
-		return SkillConfig{}, BadRequest("SKILL_WRITE_FAILED", "Skill 文件写入失败。", "请检查 .agent 目录权限。")
-	}
-	s.Mu.Lock()
-	defer s.Mu.Unlock()
-	input = written
-	s.Skills[input.SkillID] = input
-	return input, nil
-}
-
-func (s *Store) DeleteSkill(skillID string) (DeleteResult, *AppError) {
-	if skillID == "" {
-		return DeleteResult{}, BadRequest("BAD_REQUEST", "缺少 skillId。", "请选择要删除的 Skill。")
-	}
-	s.Mu.Lock()
-	defer s.Mu.Unlock()
-	delete(s.Skills, skillID)
-	return DeleteResult{OK: true, DeletedID: skillID}, nil
-}
-
-func (s *Store) ListTools() []ToolConfig {
-	s.Mu.Lock()
-	defer s.Mu.Unlock()
-	return sortedValues(s.Tools, func(item ToolConfig) string { return item.DisplayName })
-}
-
-func (s *Store) GetTool(toolID string) (ToolConfig, *AppError) {
-	if toolID == "" {
-		return ToolConfig{}, BadRequest("BAD_REQUEST", "缺少 toolId。", "请选择要查看的工具。")
-	}
-	s.Mu.Lock()
-	defer s.Mu.Unlock()
-	tool, ok := s.Tools[toolID]
-	if !ok {
-		return ToolConfig{}, NotFound("TOOL_NOT_FOUND", "工具不存在。", "请刷新工具列表。")
-	}
-	return tool, nil
-}
-
-func (s *Store) SaveTool(input ToolConfig) (ToolConfig, *AppError) {
-	if input.ToolID == "" || input.DisplayName == "" {
-		return ToolConfig{}, BadRequest("BAD_REQUEST", "工具配置格式无效。", "请填写 toolId 和名称。")
-	}
-	if input.Category == "" {
-		input.Category = "project"
-	}
-	if input.RiskLevel == "" {
-		input.RiskLevel = "medium"
-	}
-	s.Mu.Lock()
-	defer s.Mu.Unlock()
-	if existing, ok := s.Tools[input.ToolID]; ok && existing.BuiltIn {
-		input.BuiltIn = true
-	}
-	s.Tools[input.ToolID] = input
-	return input, nil
-}
-
-func (s *Store) SetToolEnabled(toolID string, enabled bool) (ToolConfig, *AppError) {
-	if toolID == "" {
-		return ToolConfig{}, BadRequest("BAD_REQUEST", "缺少 toolId。", "请选择要切换的工具。")
-	}
-	s.Mu.Lock()
-	defer s.Mu.Unlock()
-	tool, ok := s.Tools[toolID]
-	if !ok {
-		return ToolConfig{}, NotFound("TOOL_NOT_FOUND", "工具不存在。", "请刷新工具列表。")
-	}
-	tool.Enabled = enabled
-	s.Tools[toolID] = tool
-	return tool, nil
-}
-
-func (s *Store) DeleteTool(toolID string) (DeleteResult, *AppError) {
-	if toolID == "" {
-		return DeleteResult{}, BadRequest("BAD_REQUEST", "缺少 toolId。", "请选择要删除的工具。")
-	}
-	s.Mu.Lock()
-	defer s.Mu.Unlock()
-	delete(s.Tools, toolID)
-	return DeleteResult{OK: true, DeletedID: toolID}, nil
 }

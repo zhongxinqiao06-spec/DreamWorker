@@ -57,17 +57,6 @@ const activeMcpTools = computed(() =>
   )
 )
 
-const profileModelOptions = computed(() => {
-  const providerModels =
-    appShell.providers.find((provider) => provider.providerId === appShell.profileDraft.providerId)
-      ?.availableModels ?? []
-  const currentModel = appShell.profileDraft.model.trim()
-  if (currentModel && !providerModels.includes(currentModel)) {
-    return [currentModel, ...providerModels]
-  }
-  return providerModels
-})
-
 function providerInitial(providerName: string): string {
   return providerName.trim().slice(0, 1).toUpperCase() || 'AI'
 }
@@ -328,125 +317,6 @@ function addProvider(template: ProviderTemplateId): void {
       </form>
     </section>
 
-    <section v-else-if="appShell.activeResourceTab === 'profiles'" class="resource-grid">
-      <aside class="resource-list" aria-label="模型配置">
-        <button type="button" class="list-row create-row" @click="appShell.newProfileDraft()">
-          <strong>新增模型配置</strong>
-          <span>绑定服务商、模型、温度和上下文窗口</span>
-        </button>
-        <button
-          v-for="profile in appShell.profiles"
-          :key="profile.profileId"
-          class="list-row"
-          :class="{ active: profile.profileId === appShell.activeProfileId }"
-          type="button"
-          @click="appShell.selectProfile(profile.profileId)"
-        >
-          <strong>{{ profile.displayName }}</strong>
-          <span>{{ profile.providerId }} / {{ profile.model }}</span>
-          <span>{{ profile.responseFormat }} / {{ profile.toolMode }}</span>
-        </button>
-      </aside>
-
-      <form class="editor-card" @submit.prevent="appShell.saveProfileDraft()">
-        <div class="editor-toolbar">
-          <div class="section-title">
-            <DatabaseZap :size="18" aria-hidden="true" />
-            <span>模型配置</span>
-          </div>
-          <div class="horizontal-actions">
-            <button type="button" @click="appShell.newProfileDraft()">
-              <Plus :size="15" aria-hidden="true" />
-              新增
-            </button>
-            <button class="primary-button" type="submit">
-              <Save :size="15" aria-hidden="true" />
-              保存
-            </button>
-            <button class="danger-button" type="button" @click="appShell.deleteActiveProfile()">
-              <Trash2 :size="15" aria-hidden="true" />
-              删除
-            </button>
-          </div>
-        </div>
-        <div class="form-grid two">
-          <label>
-            配置 ID
-            <input v-model="appShell.profileDraft.profileId" />
-          </label>
-          <label>
-            名称
-            <input v-model="appShell.profileDraft.displayName" />
-          </label>
-          <label>
-            服务商
-            <select v-model="appShell.profileDraft.providerId">
-              <option
-                v-for="provider in appShell.providers"
-                :key="provider.providerId"
-                :value="provider.providerId"
-              >
-                {{ provider.displayName }}
-              </option>
-            </select>
-          </label>
-          <label>
-            模型
-            <input v-model="appShell.profileDraft.model" list="profile-model-options" />
-            <datalist id="profile-model-options">
-              <option v-for="model in profileModelOptions" :key="model" :value="model" />
-            </datalist>
-          </label>
-          <label>
-            温度
-            <input
-              v-model.number="appShell.profileDraft.temperature"
-              type="number"
-              min="0"
-              max="2"
-              step="0.1"
-            />
-          </label>
-          <label>
-            最大输出
-            <input v-model.number="appShell.profileDraft.maxTokens" type="number" min="1" />
-          </label>
-          <label>
-            上下文窗口
-            <input v-model.number="appShell.profileDraft.contextWindow" type="number" min="1024" />
-          </label>
-          <label>
-            超时毫秒
-            <input v-model.number="appShell.profileDraft.timeoutMs" type="number" min="1000" />
-          </label>
-          <label>
-            输出格式
-            <select v-model="appShell.profileDraft.responseFormat">
-              <option value="text">文本</option>
-              <option value="json_object">JSON 对象</option>
-              <option value="json_schema">JSON Schema</option>
-            </select>
-          </label>
-          <label>
-            工具模式
-            <select v-model="appShell.profileDraft.toolMode">
-              <option value="none">不调用</option>
-              <option value="auto">自动</option>
-              <option value="required">必须调用</option>
-            </select>
-          </label>
-        </div>
-        <label>
-          用途
-          <textarea v-model="appShell.profileDraft.purpose" />
-        </label>
-        <label class="check-row">
-          <input v-model="appShell.profileDraft.enabled" type="checkbox" />
-          启用
-        </label>
-      </form>
-    </section>
-
     <section v-else-if="appShell.activeResourceTab === 'agents'" class="resource-grid">
       <aside class="resource-list" aria-label="Agent 列表">
         <button type="button" class="list-row create-row" @click="appShell.newAgentDraft()">
@@ -463,7 +333,7 @@ function addProvider(template: ProviderTemplateId): void {
         >
           <strong>{{ agent.displayName }}</strong>
           <span>{{ agent.role }}</span>
-          <span>{{ agent.modelProfileId }}</span>
+          <span>{{ agent.providerId }} / {{ agent.model }}</span>
         </button>
       </aside>
       <form class="editor-card" @submit.prevent="appShell.saveAgentDraft()">
@@ -501,14 +371,32 @@ function addProvider(template: ProviderTemplateId): void {
             <input v-model="appShell.agentDraft.role" />
           </label>
           <label>
-            模型配置
-            <select v-model="appShell.agentDraft.modelProfileId">
+            模型服务商
+            <select
+              :value="appShell.agentDraft.providerId"
+              @change="appShell.setAgentDraftProvider(($event.target as HTMLSelectElement).value)"
+            >
               <option
-                v-for="profile in appShell.profiles"
-                :key="profile.profileId"
-                :value="profile.profileId"
+                v-for="provider in appShell.providers"
+                :key="provider.providerId"
+                :value="provider.providerId"
               >
-                {{ profile.displayName }}
+                {{ provider.displayName }}
+              </option>
+            </select>
+          </label>
+          <label>
+            模型
+            <select
+              :value="appShell.agentDraft.model"
+              @change="appShell.setAgentDraftModel(($event.target as HTMLSelectElement).value)"
+            >
+              <option
+                v-for="model in appShell.modelsForProvider(appShell.agentDraft.providerId)"
+                :key="model"
+                :value="model"
+              >
+                {{ model }}
               </option>
             </select>
           </label>

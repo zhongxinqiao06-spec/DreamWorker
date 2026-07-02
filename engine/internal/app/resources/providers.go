@@ -185,41 +185,6 @@ func (s *Store) RefreshProviderModels(providerID string) (SafeModelProvider, *Ap
 	return provider.safe(), nil
 }
 
-func (s *Store) ListProfiles() []ModelProfile {
-	s.Mu.Lock()
-	defer s.Mu.Unlock()
-	return sortedValues(s.Profiles, func(item ModelProfile) string { return item.DisplayName })
-}
-
-func (s *Store) SaveProfile(input ModelProfile) (ModelProfile, *AppError) {
-	if input.ProfileID == "" {
-		return ModelProfile{}, BadRequest("BAD_REQUEST", "invalid model profile", "check profileId, provider and model")
-	}
-	s.Mu.Lock()
-	defer s.Mu.Unlock()
-	now := s.Now()
-	existing, exists := s.Profiles[input.ProfileID]
-	if !exists {
-		input.CreatedAt = now
-	} else {
-		input.CreatedAt = existing.CreatedAt
-	}
-	input = ensureModelProfileDefaults(input)
-	input.UpdatedAt = now
-	s.Profiles[input.ProfileID] = input
-	return input, nil
-}
-
-func (s *Store) DeleteProfile(profileID string) (DeleteResult, *AppError) {
-	if profileID == "" {
-		return DeleteResult{}, BadRequest("BAD_REQUEST", "缺少 profileId。", "请选择要删除的模型配置。")
-	}
-	s.Mu.Lock()
-	defer s.Mu.Unlock()
-	delete(s.Profiles, profileID)
-	return DeleteResult{OK: true, DeletedID: profileID}, nil
-}
-
 func (p ModelProviderRecord) safe() SafeModelProvider {
 	safe := p.SafeModelProvider
 	if safe.Status == "" {

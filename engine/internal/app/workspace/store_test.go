@@ -71,6 +71,31 @@ func TestProvidersNeverExposeRawAPIKey(t *testing.T) {
 	}
 }
 
+func TestDefaultModelProfilesPreferDeepSeekFastProBeforeSiliconFlow(t *testing.T) {
+	t.Setenv("DEEPSEEK_API_KEY", "sk-test-deepseek")
+	t.Setenv("SILICONFLOW_API_KEY", "sk-test-siliconflow")
+	store := newTestStore()
+
+	profiles := store.ListProfiles()
+	if len(profiles) < 3 {
+		t.Fatalf("expected at least three model profiles, got %#v", profiles)
+	}
+	expected := []struct {
+		profileID string
+		model     string
+	}{
+		{"profile_fast", "deepseek-v4-flash"},
+		{"profile_pro", "deepseek-v4-pro"},
+		{"profile_siliconflow", "deepseek-ai/DeepSeek-V4-Flash"},
+	}
+	for index, want := range expected {
+		got := profiles[index]
+		if got.ProfileID != want.profileID || got.Model != want.model {
+			t.Fatalf("profile[%d] = %s/%s, want %s/%s; all=%#v", index, got.ProfileID, got.Model, want.profileID, want.model, profiles)
+		}
+	}
+}
+
 func TestMCPServerMasksSecrets(t *testing.T) {
 	store := newTestStore()
 
