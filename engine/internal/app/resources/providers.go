@@ -32,8 +32,8 @@ func (s *Store) SaveProvider(input SaveModelProviderInput) (SafeModelProvider, *
 	record.BaseURL = strings.TrimSpace(input.BaseURL)
 	record.Organization = input.Organization
 	record.Project = input.Project
-	record.DefaultModel = strings.TrimSpace(input.DefaultModel)
-	record.AvailableModels = append([]string{}, input.AvailableModels...)
+	record.DefaultModel = NormalizeProviderModelID(input.ProviderID, input.DefaultModel)
+	record.AvailableModels = normalizeProviderModelList(input.ProviderID, input.AvailableModels)
 	record.Enabled = input.Enabled
 	record.Capabilities = normalizeCapabilities(input.Capabilities)
 	if len(record.Capabilities) == 0 {
@@ -152,9 +152,11 @@ func (s *Store) RefreshProviderModels(providerID string) (SafeModelProvider, *Ap
 	s.Mu.Unlock()
 	discovery := s.ModelGateway.DiscoverModels(context.Background(), toChatModelProvider(provider))
 	if discovery.Discovered && len(discovery.Models) > 0 {
-		provider.AvailableModels = discovery.Models
-		if provider.DefaultModel == "" || !containsString(discovery.Models, provider.DefaultModel) {
-			provider.DefaultModel = discovery.Models[0]
+		provider.AvailableModels = normalizeProviderModelList(provider.ProviderID, discovery.Models)
+		provider.DefaultModel = NormalizeProviderModelID(provider.ProviderID, provider.DefaultModel)
+		if len(provider.AvailableModels) > 0 &&
+			(provider.DefaultModel == "" || !containsString(provider.AvailableModels, provider.DefaultModel)) {
+			provider.DefaultModel = provider.AvailableModels[0]
 		}
 		provider.Status = "connected"
 		provider.HealthStatus = "connected"

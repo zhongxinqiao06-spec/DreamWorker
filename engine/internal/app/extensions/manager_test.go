@@ -50,6 +50,45 @@ func TestSetSecretOnlyReturnsMaskedStatus(t *testing.T) {
 	}
 }
 
+func TestSetSecretRejectsNonASCIIToken(t *testing.T) {
+	manager := NewNodeExtensionManager(WithBaseDir(t.TempDir()), WithPersistence(true))
+
+	if err := manager.SetSecret(NineRouterExtensionID, "sk-4b5鈥⑩€⑩€"); err == nil || err.Code != "EXTENSION_SECRET_INVALID" {
+		t.Fatalf("expected invalid secret error, got %#v", err)
+	}
+	if manager.Secret(NineRouterExtensionID) != "" {
+		t.Fatalf("expected invalid secret not to be stored")
+	}
+}
+
+func TestSettingsNormalizeKiroModelAlias(t *testing.T) {
+	manager := NewNodeExtensionManager(WithBaseDir(t.TempDir()))
+	model := "kiro/claude-sonnet-4.5"
+	settings, err := manager.UpdateSettings(UpdateSettingsInput{NineRouterDefaultModel: &model})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settings.NineRouterDefaultModel != "kr/claude-sonnet-4.5" {
+		t.Fatalf("expected kr alias, got %q", settings.NineRouterDefaultModel)
+	}
+}
+
+func TestPersistentStateSkipsCorruptedSecret(t *testing.T) {
+	baseDir := t.TempDir()
+	data := []byte(`{"settings":{"nineRouterDefaultModel":"kiro/claude-sonnet-4.5"},"secrets":{"extension_9router":"sk-4b5鈥⑩€⑩€"}}`)
+	if err := os.WriteFile(filepath.Join(baseDir, "extensions.config.json"), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	manager := NewNodeExtensionManager(WithBaseDir(baseDir), WithPersistence(true))
+	if manager.Secret(NineRouterExtensionID) != "" {
+		t.Fatalf("expected corrupted secret to be ignored")
+	}
+	if manager.GetSettings().NineRouterDefaultModel != "kr/claude-sonnet-4.5" {
+		t.Fatalf("expected persisted kiro alias to normalize, got %q", manager.GetSettings().NineRouterDefaultModel)
+	}
+}
+
 func TestPersistentStateRestoresSettingsAndSecret(t *testing.T) {
 	baseDir := t.TempDir()
 	manager := NewNodeExtensionManager(WithBaseDir(baseDir), WithPersistence(true))

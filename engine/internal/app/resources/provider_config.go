@@ -102,8 +102,8 @@ func normalizeProviderRecord(record ModelProviderRecord, now string) ModelProvid
 	record.ProviderID = strings.TrimSpace(record.ProviderID)
 	record.DisplayName = strings.TrimSpace(record.DisplayName)
 	record.BaseURL = strings.TrimSpace(record.BaseURL)
-	record.DefaultModel = strings.TrimSpace(record.DefaultModel)
-	record.AvailableModels = normalizeStringList(record.AvailableModels)
+	record.DefaultModel = NormalizeProviderModelID(record.ProviderID, record.DefaultModel)
+	record.AvailableModels = normalizeProviderModelList(record.ProviderID, record.AvailableModels)
 	record.Capabilities = normalizeCapabilities(record.Capabilities)
 	if len(record.Capabilities) == 0 {
 		record.Capabilities = defaultProviderCapabilities(record.ProviderType)

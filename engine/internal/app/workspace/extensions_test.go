@@ -89,3 +89,72 @@ func TestNineRouterEndpointKeyPersistsAcrossStoreRestart(t *testing.T) {
 		t.Fatalf("expected reloaded 9router provider with masked key, got %#v", found)
 	}
 }
+
+func TestNineRouterProviderNormalizesKiroModelAlias(t *testing.T) {
+	store := NewStore(
+		WithClock(func() string { return "2026-07-01T00:00:00Z" }),
+		WithConfigDir(t.TempDir()),
+	)
+
+	provider, appErr := store.SaveProvider(SaveModelProviderInput{
+		ProviderID:      extensions.NineRouterProviderID,
+		ProviderType:    ProviderOpenAICompatible,
+		DisplayName:     "9Router 免费模型路由",
+		BaseURL:         "http://localhost:20128/v1",
+		DefaultModel:    "kiro/claude-sonnet-4.5",
+		AvailableModels: []string{"kiro/claude-sonnet-4.5", "kr/glm-5"},
+		Enabled:         true,
+		Capabilities:    []string{"chat", "tools", "json_schema"},
+		APIKey:          "sk-9router-endpoint-secret",
+	})
+	if appErr != nil {
+		t.Fatalf("save 9router provider: %v", appErr)
+	}
+	if provider.DefaultModel != "kr/claude-sonnet-4.5" {
+		t.Fatalf("expected normalized default model, got %q", provider.DefaultModel)
+	}
+	if len(provider.AvailableModels) == 0 || provider.AvailableModels[0] != "kr/claude-sonnet-4.5" {
+		t.Fatalf("expected normalized model list, got %#v", provider.AvailableModels)
+	}
+}
+
+func TestNineRouterChatBindingNormalizesKiroModelAlias(t *testing.T) {
+	store := NewStore(
+		WithClock(func() string { return "2026-07-01T00:00:00Z" }),
+		WithConfigDir(t.TempDir()),
+	)
+
+	session, appErr := store.CreateChatSession(CreateChatSessionInput{
+		Title:      "Kiro Alias",
+		ProviderID: extensions.NineRouterProviderID,
+		Model:      "kiro/claude-sonnet-4.5",
+	})
+	if appErr != nil {
+		t.Fatalf("create chat session: %v", appErr)
+	}
+	if session.Model != "kr/claude-sonnet-4.5" {
+		t.Fatalf("expected normalized session model, got %q", session.Model)
+	}
+}
+
+func TestNineRouterProviderRejectsCorruptedEndpointKey(t *testing.T) {
+	store := NewStore(
+		WithClock(func() string { return "2026-07-01T00:00:00Z" }),
+		WithConfigDir(t.TempDir()),
+	)
+
+	_, appErr := store.SaveProvider(SaveModelProviderInput{
+		ProviderID:      extensions.NineRouterProviderID,
+		ProviderType:    ProviderOpenAICompatible,
+		DisplayName:     "9Router 免费模型路由",
+		BaseURL:         "http://localhost:20128/v1",
+		DefaultModel:    "kr/claude-sonnet-4.5",
+		AvailableModels: []string{"kr/claude-sonnet-4.5"},
+		Enabled:         true,
+		Capabilities:    []string{"chat", "tools", "json_schema"},
+		APIKey:          "sk-4b5鈥⑩€⑩€",
+	})
+	if appErr == nil || appErr.Code != "EXTENSION_SECRET_INVALID" {
+		t.Fatalf("expected invalid endpoint key error, got %#v", appErr)
+	}
+}

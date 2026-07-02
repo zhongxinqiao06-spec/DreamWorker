@@ -214,8 +214,10 @@ func (s *Store) syncExtensionProviders() {
 	existing, exists := s.Providers[extensions.NineRouterProviderID]
 	s.Mu.Unlock()
 	if apiKey == "" && exists && strings.TrimSpace(existing.APIKey) != "" {
-		apiKey = existing.APIKey
-		_ = s.extensionManager.SetSecret(extensions.NineRouterExtensionID, apiKey)
+		candidate := existing.APIKey
+		if err := s.extensionManager.SetSecret(extensions.NineRouterExtensionID, candidate); err == nil {
+			apiKey = candidate
+		}
 	}
 	now := s.Now()
 	models := append([]string{}, status.Models...)

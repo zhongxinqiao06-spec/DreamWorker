@@ -106,7 +106,7 @@ func NewNodeExtensionManager(options ...Option) *NodeExtensionManager {
 	if manager.persist {
 		manager.loadState()
 	}
-	if key := strings.TrimSpace(os.Getenv(NineRouterSecretKey)); key != "" {
+	if key := strings.TrimSpace(os.Getenv(NineRouterSecretKey)); validSecretToken(key) {
 		manager.secrets[NineRouterExtensionID] = key
 	}
 	manager.registerSpec(manager.nineRouterSpec())
@@ -333,6 +333,13 @@ func (m *NodeExtensionManager) SetSecret(extensionID string, value string) *Erro
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return nil
+	}
+	if !validSecretToken(value) {
+		return &Error{
+			Code:       "EXTENSION_SECRET_INVALID",
+			Message:    "9Router API Key contains invalid characters.",
+			UserAction: "Copy the Endpoint Key from 9Router Dashboard again, then save it.",
+		}
 	}
 	m.secrets[extensionID] = value
 	status := m.statuses[extensionID]
@@ -1075,7 +1082,7 @@ func (m *NodeExtensionManager) loadState() {
 	m.settings = normalizeSettings(state.Settings)
 	for extensionID, secret := range state.Secrets {
 		secret = strings.TrimSpace(secret)
-		if extensionID == "" || secret == "" {
+		if extensionID == "" || !validSecretToken(secret) {
 			continue
 		}
 		m.secrets[extensionID] = secret
@@ -1092,7 +1099,7 @@ func (m *NodeExtensionManager) persistStateLocked() *Error {
 	}
 	for extensionID, secret := range m.secrets {
 		secret = strings.TrimSpace(secret)
-		if extensionID == "" || secret == "" {
+		if extensionID == "" || !validSecretToken(secret) {
 			continue
 		}
 		state.Secrets[extensionID] = secret
@@ -1167,6 +1174,7 @@ func normalizeSettings(settings AppSettings) AppSettings {
 	if settings.NineRouterDefaultModel == "" {
 		settings.NineRouterDefaultModel = defaults.NineRouterDefaultModel
 	}
+	settings.NineRouterDefaultModel = normalizeNineRouterModelID(settings.NineRouterDefaultModel)
 	if settings.NineRouterManagedInstallVersion == "" {
 		settings.NineRouterManagedInstallVersion = defaults.NineRouterManagedInstallVersion
 	}
@@ -1187,6 +1195,26 @@ func normalizeLocalHTTPURL(value string) string {
 	}
 	parsed.Scheme = "http"
 	return parsed.String()
+}
+
+func normalizeNineRouterModelID(model string) string {
+	model = strings.TrimSpace(model)
+	if strings.HasPrefix(strings.ToLower(model), "kiro/") {
+		return "kr/" + strings.TrimSpace(model[len("kiro/"):])
+	}
+	return model
+}
+
+func validSecretToken(value string) bool {
+	if strings.TrimSpace(value) == "" {
+		return false
+	}
+	for _, char := range value {
+		if char < 33 || char > 126 {
+			return false
+		}
+	}
+	return true
 }
 
 func isLoopbackHostname(hostname string) bool {

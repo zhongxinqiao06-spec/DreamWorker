@@ -202,7 +202,7 @@ func ToChatModelProfile(profile ModelProfile) ports.ChatModelProfile {
 
 func ProviderAllowsMissingAPIKey(provider ModelProviderRecord) bool {
 	return provider.ProviderID == "provider_local_stub" ||
-		provider.ProviderID == "provider_9router_local" ||
+		provider.ProviderID == nineRouterProviderID ||
 		provider.DefaultModel == "model_generate_stub" ||
 		provider.ProviderType == ProviderOllama
 }

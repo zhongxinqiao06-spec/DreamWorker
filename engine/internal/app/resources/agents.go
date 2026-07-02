@@ -47,6 +47,7 @@ func (s *Store) ensureAgentModelDefaultsLocked(agent AgentConfig) AgentConfig {
 	model := strings.TrimSpace(agent.Model)
 	if providerID != "" {
 		if provider, ok := s.Providers[providerID]; ok {
+			model = NormalizeProviderModelID(providerID, model)
 			if model == "" {
 				model = provider.DefaultModel
 			}

@@ -17,16 +17,17 @@ func EffectiveProviderModel(profile ModelProfile, provider ModelProviderRecord) 
 	if model == "" {
 		model = strings.TrimSpace(provider.DefaultModel)
 	}
+	model = NormalizeProviderModelID(providerID, model)
 	return providerID, model
 }
 
 func ProfileIDForProviderModel(providerID string, model string) string {
-	value := strings.TrimSpace(providerID) + "_" + strings.TrimSpace(model)
+	value := strings.TrimSpace(providerID) + "_" + NormalizeProviderModelID(providerID, model)
 	return "profile_" + sanitizeID(value)
 }
 
 func ProfileFromProviderModel(provider ModelProviderRecord, model string, timestamp string) ModelProfile {
-	selectedModel := strings.TrimSpace(model)
+	selectedModel := NormalizeProviderModelID(provider.ProviderID, model)
 	if selectedModel == "" {
 		selectedModel = provider.DefaultModel
 	}
@@ -76,6 +77,7 @@ func (s *Store) SaveProfile(input ModelProfile) (ModelProfile, *AppError) {
 	} else {
 		input.CreatedAt = existing.CreatedAt
 	}
+	input.Model = NormalizeProviderModelID(input.ProviderID, input.Model)
 	input = ensureModelProfileDefaults(input)
 	input.UpdatedAt = now
 	s.Profiles[input.ProfileID] = input

@@ -97,6 +97,7 @@ func (s *Store) ensureChatModelDefaultsLocked(profileID string, providerID strin
 	model = strings.TrimSpace(model)
 	if providerID != "" {
 		if provider, ok := s.Providers[providerID]; ok {
+			model = resources.NormalizeProviderModelID(providerID, model)
 			if model == "" {
 				model = provider.DefaultModel
 			}
