@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   Bot,
   Copy,
@@ -17,10 +17,16 @@ import {
   Wrench
 } from 'lucide-vue-next'
 import {
+  ALL_MODEL_ROUTE_SOURCE,
+  isRoutedModelProvider,
+  modelsForRouteSource,
   providerCapabilityOptions,
   providerTemplateOptions,
   providerTypeOptions,
+  routeSourceForModel,
+  routeSourceOptionsForModels,
   useAppShellStore,
+  type ModelRouteSourceOption,
   type ProviderTemplateId
 } from '../stores/app-shell'
 import type {
@@ -33,6 +39,7 @@ const appShell = useAppShellStore()
 const extensionPanelMode = ref<'config' | 'console'>('config')
 const extensionConsoleRevision = ref(0)
 const showProviderApiKey = ref(false)
+const activeProviderRouteSource = ref(ALL_MODEL_ROUTE_SOURCE)
 
 const providerLogoSrc: Record<ProviderType, string> = {
   deepseek: '/provider-icons/deepseek.svg',
@@ -64,6 +71,27 @@ const activeMcpTools = computed(() =>
   appShell.tools.filter((tool) =>
     tool.toolId.startsWith(`mcp_${appShell.activeMcpServer?.serverId ?? ''}`)
   )
+)
+const providerModelLines = computed(() => splitLines(appShell.providerDraft.availableModelsText))
+const providerDraftRouteTarget = computed(() => ({
+  providerId: appShell.providerDraft.providerId,
+  providerType: appShell.providerDraft.providerType,
+  displayName: appShell.providerDraft.displayName,
+  baseURL: appShell.providerDraft.baseURL
+}))
+const providerUsesRouteSources = computed(() =>
+  isRoutedModelProvider(providerDraftRouteTarget.value)
+)
+const providerRouteSourceOptions = computed(() =>
+  providerUsesRouteSources.value ? routeSourceOptionsForModels(providerModelLines.value) : []
+)
+const showProviderRouteSource = computed(
+  () => providerUsesRouteSources.value && providerRouteSourceOptions.value.length > 1
+)
+const filteredProviderModels = computed(() =>
+  showProviderRouteSource.value
+    ? modelsForRouteSource(providerModelLines.value, activeProviderRouteSource.value)
+    : providerModelLines.value
 )
 
 const extensionConsoleUrl = computed(() =>
@@ -114,10 +142,18 @@ function runModeText(mode: string | undefined): string {
   return mode === 'managed' ? 'DreamWorker 受管' : '外部服务'
 }
 
+function isLoopbackHost(hostname: string): boolean {
+  const host = hostname.replace(/^\[|\]$/g, '').toLowerCase()
+  return host === 'localhost' || host === '0.0.0.0' || host === '::1' || host.startsWith('127.')
+}
+
 function normalizeDashboardUrl(value: string): string {
   const trimmed = value.trim() || 'http://localhost:20128'
   try {
     const url = new URL(trimmed)
+    if (url.protocol === 'https:' && isLoopbackHost(url.hostname)) {
+      url.protocol = 'http:'
+    }
     if (url.pathname === '' || url.pathname === '/') {
       url.pathname = '/dashboard'
     }
@@ -163,6 +199,51 @@ function splitLines(value: string): string[] {
     .map((line) => line.trim())
     .filter(Boolean)
 }
+
+function routeOptionLabel(option: ModelRouteSourceOption): string {
+  return `${option.label} (${option.modelCount})`
+}
+
+function syncProviderRouteSource(): void {
+  if (!showProviderRouteSource.value) {
+    activeProviderRouteSource.value = ALL_MODEL_ROUTE_SOURCE
+    return
+  }
+  const optionIds = providerRouteSourceOptions.value.map((option) => option.id)
+  const defaultSource = routeSourceForModel(appShell.providerDraft.defaultModel)
+  if (optionIds.includes(defaultSource)) {
+    activeProviderRouteSource.value = defaultSource
+    return
+  }
+  if (!optionIds.includes(activeProviderRouteSource.value)) {
+    activeProviderRouteSource.value = ALL_MODEL_ROUTE_SOURCE
+  }
+}
+
+function setProviderRouteSource(event: Event): void {
+  const source = (event.target as HTMLSelectElement).value
+  activeProviderRouteSource.value = source
+  if (source === ALL_MODEL_ROUTE_SOURCE) {
+    return
+  }
+  const sourceModels = modelsForRouteSource(providerModelLines.value, source)
+  if (sourceModels.length > 0 && !sourceModels.includes(appShell.providerDraft.defaultModel)) {
+    appShell.providerDraft.defaultModel = sourceModels[0] ?? ''
+  }
+}
+
+watch(
+  () => [
+    appShell.providerDraft.providerId,
+    appShell.providerDraft.providerType,
+    appShell.providerDraft.displayName,
+    appShell.providerDraft.baseURL,
+    appShell.providerDraft.availableModelsText,
+    appShell.providerDraft.defaultModel
+  ],
+  syncProviderRouteSource,
+  { immediate: true }
+)
 
 function setSkillRequiredCapabilities(event: Event): void {
   appShell.skillDraft = {
@@ -337,15 +418,30 @@ async function copyProviderApiKey(): Promise<void> {
               </label>
               <label>
                 默认模型
-                <select v-model="appShell.providerDraft.defaultModel">
-                  <option
-                    v-for="model in splitLines(appShell.providerDraft.availableModelsText)"
-                    :key="model"
-                    :value="model"
+                <div
+                  class="route-model-selectors"
+                  :class="{ 'single-select': !showProviderRouteSource }"
+                >
+                  <select
+                    v-if="showProviderRouteSource"
+                    :value="activeProviderRouteSource"
+                    aria-label="上游服务商"
+                    @change="setProviderRouteSource"
                   >
-                    {{ model }}
-                  </option>
-                </select>
+                    <option
+                      v-for="source in providerRouteSourceOptions"
+                      :key="source.id"
+                      :value="source.id"
+                    >
+                      {{ routeOptionLabel(source) }}
+                    </option>
+                  </select>
+                  <select v-model="appShell.providerDraft.defaultModel">
+                    <option v-for="model in filteredProviderModels" :key="model" :value="model">
+                      {{ model }}
+                    </option>
+                  </select>
+                </div>
               </label>
               <label>
                 API Key
@@ -375,15 +471,19 @@ async function copyProviderApiKey(): Promise<void> {
                     <Copy :size="17" aria-hidden="true" />
                   </button>
                 </div>
+                <small v-if="appShell.activeProvider?.hasApiKey" class="secret-field-note">
+                  已保存到本地；留空保存会继续使用当前密钥
+                  <span v-if="appShell.activeProvider.maskedKey">
+                    {{ appShell.activeProvider.maskedKey }}
+                  </span>
+                </small>
               </label>
             </div>
 
             <label class="provider-model-textarea">
               <span class="field-label-row">
                 <span>可用模型清单</span>
-                <small
-                  >{{ splitLines(appShell.providerDraft.availableModelsText).length }} 个模型</small
-                >
+                <small>{{ providerModelLines.length }} 个模型</small>
               </span>
               <textarea
                 v-model="appShell.providerDraft.availableModelsText"
@@ -400,7 +500,8 @@ async function copyProviderApiKey(): Promise<void> {
                 <span>能力与模型</span>
               </div>
               <strong
-                >{{ splitLines(appShell.providerDraft.availableModelsText).length }} 个模型</strong
+                >{{ filteredProviderModels.length }} /
+                {{ providerModelLines.length }} 个模型</strong
               >
             </div>
 
@@ -443,10 +544,7 @@ async function copyProviderApiKey(): Promise<void> {
             </dl>
 
             <section class="model-preview-list provider-model-list" aria-label="当前模型">
-              <article
-                v-for="model in splitLines(appShell.providerDraft.availableModelsText)"
-                :key="model"
-              >
+              <article v-for="model in filteredProviderModels" :key="model">
                 <DatabaseZap :size="16" aria-hidden="true" />
                 <span>{{ model }}</span>
               </article>

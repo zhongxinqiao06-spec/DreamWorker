@@ -1,7 +1,13 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DreamWorkerApi } from '../../../shared/dreamworker-api'
-import { useAppShellStore } from './app-shell'
+import {
+  ALL_MODEL_ROUTE_SOURCE,
+  isRoutedModelProvider,
+  modelsForRouteSource,
+  routeSourceOptionsForModels,
+  useAppShellStore
+} from './app-shell'
 
 function createDreamWorkerApiStub(): DreamWorkerApi {
   return {
@@ -570,6 +576,39 @@ describe('app shell workspace state', () => {
       traceId: 'tr_store',
       errorCode: '暂无'
     })
+  })
+
+  it('groups routed models by upstream source prefix', () => {
+    const models = ['cx/gpt-5.5', 'kr/claude-sonnet-4.5', 'kr/claude-haiku-4.5']
+
+    expect(routeSourceOptionsForModels(models)).toEqual([
+      { id: ALL_MODEL_ROUTE_SOURCE, label: '全部上游', modelCount: 3 },
+      { id: 'cx', label: 'CX', modelCount: 1 },
+      { id: 'kr', label: 'Kiro AI', modelCount: 2 }
+    ])
+    expect(modelsForRouteSource(models, 'kr')).toEqual([
+      'kr/claude-sonnet-4.5',
+      'kr/claude-haiku-4.5'
+    ])
+  })
+
+  it('only enables routed model grouping for 9Router-like providers', () => {
+    expect(
+      isRoutedModelProvider({
+        providerId: 'provider_9router_local',
+        providerType: 'openai_compatible',
+        displayName: '9Router 免费模型路由',
+        baseURL: 'http://localhost:20128/v1'
+      })
+    ).toBe(true)
+    expect(
+      isRoutedModelProvider({
+        providerId: 'provider_siliconflow',
+        providerType: 'siliconflow',
+        displayName: 'SiliconFlow',
+        baseURL: 'https://api.siliconflow.cn/v1'
+      })
+    ).toBe(false)
   })
 
   it('saves provider drafts without exposing raw keys in provider state', async () => {

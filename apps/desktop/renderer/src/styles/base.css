@@ -618,7 +618,7 @@ h3 {
 
 .chat-binding-bar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
   border-bottom: 1px solid var(--line);
   padding: 12px 16px;
@@ -1246,6 +1246,21 @@ textarea {
   background: rgba(111, 232, 255, 0.08);
 }
 
+.secret-field-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.secret-field-note span {
+  color: var(--cyan);
+  font-family: var(--mono);
+}
+
 .right-panel {
   display: grid;
   align-content: start;
@@ -1868,6 +1883,16 @@ button:disabled {
   align-content: start;
 }
 
+.route-model-selectors {
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  gap: 8px;
+}
+
+.route-model-selectors select {
+  min-width: 0;
+}
+
 .provider-model-textarea {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -2161,5 +2186,9 @@ button:disabled {
     border-top: 1px solid var(--line);
     padding-top: 14px;
     padding-left: 0;
+  }
+
+  .route-model-selectors {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, session, shell } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { join } from 'node:path'
 import { startEngineDaemon, type EngineDaemon } from './engine-daemon'
@@ -6,7 +6,57 @@ import { registerRuntimeIpcHandlers } from './runtime-ipc'
 import { createRuntimePingStubResponse } from './runtime-ping'
 import { createMainWindowOptions } from './window-options'
 
+const LOCAL_RENDERER_PROTOCOLS = new Set([
+  'file:',
+  'data:',
+  'blob:',
+  'devtools:',
+  'chrome:',
+  'about:'
+])
+let rendererNetworkGuardInstalled = false
+
+function isLoopbackHost(hostname: string): boolean {
+  const host = hostname.replace(/^\[|\]$/g, '').toLowerCase()
+  return (
+    host === 'localhost' ||
+    host === '0.0.0.0' ||
+    host === '::1' ||
+    host === '::' ||
+    host.startsWith('127.')
+  )
+}
+
+function shouldBlockRendererRequest(rawUrl: string): boolean {
+  try {
+    const url = new URL(rawUrl)
+    if (LOCAL_RENDERER_PROTOCOLS.has(url.protocol)) {
+      return false
+    }
+    if (
+      (url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'ws:') &&
+      isLoopbackHost(url.hostname)
+    ) {
+      return false
+    }
+    return true
+  } catch {
+    return true
+  }
+}
+
+function installRendererNetworkGuard(): void {
+  if (rendererNetworkGuardInstalled) {
+    return
+  }
+  rendererNetworkGuardInstalled = true
+  session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
+    callback({ cancel: shouldBlockRendererRequest(details.url) })
+  })
+}
+
 function createMainWindow(): void {
+  installRendererNetworkGuard()
   const mainWindow = new BrowserWindow(
     createMainWindowOptions(join(__dirname, '../preload/index.cjs'))
   )

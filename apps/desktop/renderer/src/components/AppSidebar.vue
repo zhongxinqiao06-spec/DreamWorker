@@ -31,7 +31,9 @@ const icons: Record<PrimaryNavId, typeof MessageSquareText> = {
 <template>
   <aside class="app-sidebar" aria-label="主导航">
     <div class="brand-block">
-      <div class="brand-mark">DW</div>
+      <div class="brand-mark">
+        <img src="/aios/brand-mark.png" alt="" />
+      </div>
       <div>
         <strong>DreamWorker</strong>
         <span>AI 工作台</span>
@@ -44,6 +46,7 @@ const icons: Record<PrimaryNavId, typeof MessageSquareText> = {
         :key="item.id"
         class="nav-item"
         :class="{ active: appShell.activePrimary === item.id }"
+        :data-nav-id="item.id"
         type="button"
         @click="appShell.setPrimary(item.id)"
       >

@@ -78,6 +78,25 @@ func TestPersistentStateRestoresSettingsAndSecret(t *testing.T) {
 	}
 }
 
+func TestLocalNineRouterHTTPSSettingsNormalizeToHTTP(t *testing.T) {
+	manager := NewNodeExtensionManager(WithBaseDir(t.TempDir()))
+	baseURL := "https://127.0.0.1:20128/v1"
+	dashboardURL := "https://localhost:20128/dashboard"
+	settings, err := manager.UpdateSettings(UpdateSettingsInput{
+		NineRouterBaseURL:      &baseURL,
+		NineRouterDashboardURL: &dashboardURL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settings.NineRouterBaseURL != "http://127.0.0.1:20128/v1" {
+		t.Fatalf("expected local base url to normalize to http, got %q", settings.NineRouterBaseURL)
+	}
+	if settings.NineRouterDashboardURL != "http://localhost:20128/dashboard" {
+		t.Fatalf("expected local dashboard url to normalize to http, got %q", settings.NineRouterDashboardURL)
+	}
+}
+
 func TestExtensionLogsAreRedacted(t *testing.T) {
 	manager := NewNodeExtensionManager(WithBaseDir(t.TempDir()))
 

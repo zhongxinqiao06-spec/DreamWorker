@@ -16,6 +16,7 @@ let logicalHeight = 1
 let particles: VortexParticle[] = []
 let reducedMotionQuery: MediaQueryList | null = null
 let reducedMotion = false
+const splashPalette = ['#7c3aed', '#2563eb', '#14b8a6', '#ede7ff'] as const
 
 function targetParticleCount(width: number, height: number): number {
   if (reducedMotion) {
@@ -59,11 +60,11 @@ function drawCore(ctx: CanvasRenderingContext2D, elapsedMs: number): void {
   ctx.save()
   ctx.globalCompositeOperation = 'lighter'
   ctx.lineWidth = 1.4
-  ctx.strokeStyle = `rgba(111, 232, 255, ${0.24 + pulse * 0.2})`
+  ctx.strokeStyle = `rgba(124, 58, 237, ${0.16 + pulse * 0.18})`
   ctx.beginPath()
   ctx.arc(centerX, centerY, coreRadius, 0, Math.PI * 2)
   ctx.stroke()
-  ctx.strokeStyle = `rgba(125, 242, 176, ${0.16 + pulse * 0.16})`
+  ctx.strokeStyle = `rgba(20, 184, 166, ${0.12 + pulse * 0.14})`
   ctx.beginPath()
   ctx.arc(centerX, centerY, coreRadius * 1.62, Math.PI * 0.18, Math.PI * 1.42)
   ctx.stroke()
@@ -85,7 +86,7 @@ function render(time: number): void {
   const elapsedMs = time - startedAt
 
   ctx.clearRect(0, 0, logicalWidth, logicalHeight)
-  ctx.fillStyle = '#08070f'
+  ctx.fillStyle = 'rgba(248, 250, 252, 0.38)'
   ctx.fillRect(0, 0, logicalWidth, logicalHeight)
 
   const haze = ctx.createRadialGradient(
@@ -96,10 +97,10 @@ function render(time: number): void {
     logicalHeight * 0.5,
     Math.max(logicalWidth, logicalHeight) * 0.68
   )
-  haze.addColorStop(0, 'rgba(111, 232, 255, 0.11)')
-  haze.addColorStop(0.32, 'rgba(155, 115, 255, 0.08)')
-  haze.addColorStop(0.72, 'rgba(125, 242, 176, 0.035)')
-  haze.addColorStop(1, 'rgba(8, 7, 15, 0)')
+  haze.addColorStop(0, 'rgba(124, 58, 237, 0.08)')
+  haze.addColorStop(0.32, 'rgba(37, 99, 235, 0.06)')
+  haze.addColorStop(0.72, 'rgba(20, 184, 166, 0.04)')
+  haze.addColorStop(1, 'rgba(248, 250, 252, 0)')
   ctx.fillStyle = haze
   ctx.fillRect(0, 0, logicalWidth, logicalHeight)
 
@@ -108,7 +109,8 @@ function render(time: number): void {
     height: logicalHeight,
     deltaMs,
     elapsedMs,
-    reducedMotion
+    reducedMotion,
+    palette: splashPalette
   })
 
   ctx.save()
@@ -152,7 +154,7 @@ onBeforeUnmount(() => {
   <section class="splash-vortex" role="status" aria-label="DreamWorker 正在启动">
     <canvas ref="canvasRef" class="splash-vortex__canvas" aria-hidden="true"></canvas>
     <div class="splash-vortex__brand" aria-hidden="true">
-      <span>DreamWorker</span>
+      <span>DreamWorker AI OS 2.0</span>
       <i></i>
     </div>
   </section>
@@ -165,8 +167,10 @@ onBeforeUnmount(() => {
   z-index: 1000;
   overflow: hidden;
   background:
-    linear-gradient(135deg, rgba(155, 115, 255, 0.12), transparent 36%),
-    linear-gradient(315deg, rgba(111, 232, 255, 0.08), transparent 34%), #08070f;
+    radial-gradient(circle at 50% 46%, rgba(124, 58, 237, 0.14), transparent 28%),
+    radial-gradient(circle at 58% 53%, rgba(37, 99, 235, 0.1), transparent 34%),
+    radial-gradient(circle at 42% 58%, rgba(20, 184, 166, 0.08), transparent 36%),
+    linear-gradient(135deg, #f8fafc 0%, #ffffff 46%, #eef4ff 100%);
   pointer-events: none;
 }
 
@@ -182,11 +186,11 @@ onBeforeUnmount(() => {
   left: 50%;
   bottom: 11vh;
   display: grid;
-  width: min(260px, 44vw);
+  width: min(280px, 44vw);
   transform: translateX(-50%);
   gap: 14px;
   justify-items: center;
-  color: #f6f2ff;
+  color: #0f172a;
   font-size: 13px;
   font-weight: 900;
   letter-spacing: 0;
@@ -199,7 +203,7 @@ onBeforeUnmount(() => {
   height: 2px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(148, 163, 184, 0.2);
 }
 
 .splash-vortex__brand i::before {
@@ -208,7 +212,7 @@ onBeforeUnmount(() => {
   height: 100%;
   animation: splash-scan 1.6s ease-in-out infinite;
   border-radius: inherit;
-  background: linear-gradient(90deg, #6fe8ff, #7df2b0, #ffd166);
+  background: linear-gradient(90deg, #7c3aed, #2563eb, #14b8a6);
   content: '';
 }
 

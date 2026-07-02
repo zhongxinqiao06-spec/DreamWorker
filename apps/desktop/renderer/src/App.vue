@@ -13,7 +13,7 @@ import { useAppShellStore } from './stores/app-shell'
 
 const appShell = useAppShellStore()
 const splashVisible = ref(true)
-const minSplashMs = 800
+const minSplashMs = 1000
 let splashStartedAt = performance.now()
 let splashTimer: number | undefined
 

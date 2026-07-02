@@ -116,6 +116,103 @@ function splitDraftLines(value: string): string[] {
     .filter(Boolean)
 }
 
+export const ALL_MODEL_ROUTE_SOURCE = '__all__'
+
+export type ModelRouteSourceOption = {
+  readonly id: string
+  readonly label: string
+  readonly modelCount: number
+}
+
+const routeSourceLabels: Record<string, string> = {
+  cx: 'CX',
+  gc: 'Gemini CLI',
+  gemini: 'Gemini CLI',
+  kiro: 'Kiro AI',
+  kr: 'Kiro AI',
+  mimo: 'MiMo Code',
+  mm: 'MiMo Code',
+  oc: 'OpenCode',
+  opencode: 'OpenCode',
+  openrouter: 'OpenRouter',
+  or: 'OpenRouter',
+  qd: 'Qoder',
+  qoder: 'Qoder'
+}
+
+export function routeSourceForModel(model: string): string {
+  const trimmed = model.trim()
+  const slashIndex = trimmed.indexOf('/')
+  if (slashIndex <= 0) {
+    return 'direct'
+  }
+  return trimmed.slice(0, slashIndex).trim() || 'direct'
+}
+
+export function routeSourceLabel(source: string): string {
+  if (source === ALL_MODEL_ROUTE_SOURCE) {
+    return '全部上游'
+  }
+  if (source === 'direct') {
+    return '直连模型'
+  }
+  return routeSourceLabels[source.toLowerCase()] ?? source.toUpperCase()
+}
+
+export function routeSourceOptionsForModels(
+  models: readonly string[]
+): readonly ModelRouteSourceOption[] {
+  if (models.length === 0) {
+    return []
+  }
+  const counts = new Map<string, number>()
+  for (const model of models) {
+    const source = routeSourceForModel(model)
+    counts.set(source, (counts.get(source) ?? 0) + 1)
+  }
+  return [
+    {
+      id: ALL_MODEL_ROUTE_SOURCE,
+      label: routeSourceLabel(ALL_MODEL_ROUTE_SOURCE),
+      modelCount: models.length
+    },
+    ...[...counts.entries()].map(([id, modelCount]) => ({
+      id,
+      label: routeSourceLabel(id),
+      modelCount
+    }))
+  ]
+}
+
+export function modelsForRouteSource(models: readonly string[], source: string): readonly string[] {
+  if (!source || source === ALL_MODEL_ROUTE_SOURCE) {
+    return models
+  }
+  return models.filter((model) => routeSourceForModel(model) === source)
+}
+
+export function isRoutedModelProvider(
+  provider:
+    | Pick<SafeModelProvider, 'providerId' | 'providerType' | 'displayName' | 'baseURL'>
+    | null
+    | undefined
+): boolean {
+  if (!provider) {
+    return false
+  }
+  const providerId = provider.providerId.toLowerCase()
+  const displayName = provider.displayName.toLowerCase()
+  const baseURL = provider.baseURL.toLowerCase()
+  return (
+    providerId === 'provider_9router_local' ||
+    providerId.includes('9router') ||
+    displayName.includes('9router') ||
+    baseURL.includes('9router') ||
+    baseURL.includes('localhost:20128') ||
+    baseURL.includes('127.0.0.1:20128')
+  )
+}
+
 function providerDraftToSaveInput(draft: ProviderDraft): SaveModelProviderInput {
   const input: SaveModelProviderInput = {
     providerId: draft.providerId,

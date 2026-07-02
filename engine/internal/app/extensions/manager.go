@@ -1159,9 +1159,11 @@ func normalizeSettings(settings AppSettings) AppSettings {
 	if settings.NineRouterBaseURL == "" {
 		settings.NineRouterBaseURL = defaults.NineRouterBaseURL
 	}
+	settings.NineRouterBaseURL = normalizeLocalHTTPURL(settings.NineRouterBaseURL)
 	if settings.NineRouterDashboardURL == "" {
 		settings.NineRouterDashboardURL = defaults.NineRouterDashboardURL
 	}
+	settings.NineRouterDashboardURL = normalizeLocalHTTPURL(settings.NineRouterDashboardURL)
 	if settings.NineRouterDefaultModel == "" {
 		settings.NineRouterDefaultModel = defaults.NineRouterDefaultModel
 	}
@@ -1176,6 +1178,24 @@ func normalizeSettings(settings AppSettings) AppSettings {
 	}
 	settings.NineRouterManagedTimeoutMS = normalizeTimeout(settings.NineRouterManagedTimeoutMS)
 	return settings
+}
+
+func normalizeLocalHTTPURL(value string) string {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil || parsed.Scheme != "https" || !isLoopbackHostname(parsed.Hostname()) {
+		return value
+	}
+	parsed.Scheme = "http"
+	return parsed.String()
+}
+
+func isLoopbackHostname(hostname string) bool {
+	host := strings.Trim(strings.ToLower(hostname), "[]")
+	if host == "localhost" || host == "0.0.0.0" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func normalizeRunMode(mode RunMode) RunMode {

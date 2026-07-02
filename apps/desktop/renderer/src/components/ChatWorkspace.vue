@@ -15,7 +15,15 @@ import {
   WandSparkles,
   Wrench
 } from 'lucide-vue-next'
-import { useAppShellStore } from '../stores/app-shell'
+import {
+  ALL_MODEL_ROUTE_SOURCE,
+  isRoutedModelProvider,
+  modelsForRouteSource,
+  routeSourceForModel,
+  routeSourceOptionsForModels,
+  useAppShellStore,
+  type ModelRouteSourceOption
+} from '../stores/app-shell'
 import { isNearScrollBottom } from '../utils/chat-scroll'
 import type {
   ChatMessage,
@@ -30,6 +38,7 @@ import type {
 const appShell = useAppShellStore()
 const messageListRef = ref<HTMLElement | null>(null)
 const shouldStickToThreadBottom = ref(true)
+const activeChatRouteSource = ref(ALL_MODEL_ROUTE_SOURCE)
 let scrollFrameId = 0
 let scrollSyncTimer: number | undefined
 let suppressScrollSync = false
@@ -65,10 +74,24 @@ const runtimeStateText = computed(() => {
   }
   return attemptStatusText(appShell.chatRuntimeAttemptStatus)
 })
+const activeChatProvider = computed(() =>
+  appShell.providers.find((item) => item.providerId === appShell.activeChatProviderId)
+)
+const activeChatModels = computed(() => appShell.modelsForProvider(appShell.activeChatProviderId))
+const activeChatUsesRouteSources = computed(() => isRoutedModelProvider(activeChatProvider.value))
+const activeChatRouteSourceOptions = computed(() =>
+  activeChatUsesRouteSources.value ? routeSourceOptionsForModels(activeChatModels.value) : []
+)
+const showActiveChatRouteSource = computed(
+  () => activeChatUsesRouteSources.value && activeChatRouteSourceOptions.value.length > 1
+)
+const filteredActiveChatModels = computed(() =>
+  showActiveChatRouteSource.value
+    ? modelsForRouteSource(activeChatModels.value, activeChatRouteSource.value)
+    : activeChatModels.value
+)
 const activeModelLabel = computed(() => {
-  const provider = appShell.providers.find(
-    (item) => item.providerId === appShell.activeChatProviderId
-  )
+  const provider = activeChatProvider.value
   return `${provider?.displayName ?? '模型服务'} / ${appShell.activeChatModel}`
 })
 const activeSessionTitle = computed(() => appShell.activeChatSession?.title ?? '新的 Agent 对话')
@@ -87,6 +110,48 @@ const quickPrompts = [
   '根据当前项目，生成一版 PRD 大纲和关键页面清单。',
   '检查当前资源配置，告诉我模型、Agent、工具还有哪些缺口。'
 ]
+
+function routeOptionLabel(option: ModelRouteSourceOption): string {
+  return `${option.label} (${option.modelCount})`
+}
+
+function syncActiveChatRouteSource(): void {
+  if (!showActiveChatRouteSource.value) {
+    activeChatRouteSource.value = ALL_MODEL_ROUTE_SOURCE
+    return
+  }
+  const optionIds = activeChatRouteSourceOptions.value.map((option) => option.id)
+  const activeModelSource = routeSourceForModel(appShell.activeChatModel)
+  if (optionIds.includes(activeModelSource)) {
+    activeChatRouteSource.value = activeModelSource
+    return
+  }
+  if (!optionIds.includes(activeChatRouteSource.value)) {
+    activeChatRouteSource.value = ALL_MODEL_ROUTE_SOURCE
+  }
+}
+
+async function setActiveChatRouteSource(event: Event): Promise<void> {
+  const source = (event.target as HTMLSelectElement).value
+  activeChatRouteSource.value = source
+  if (source === ALL_MODEL_ROUTE_SOURCE) {
+    return
+  }
+  const sourceModels = modelsForRouteSource(activeChatModels.value, source)
+  if (sourceModels.length > 0 && !sourceModels.includes(appShell.activeChatModel)) {
+    await appShell.setActiveChatModel(sourceModels[0] ?? '')
+  }
+}
+
+watch(
+  () => [
+    appShell.activeChatProviderId,
+    appShell.activeChatModel,
+    activeChatModels.value.join('\n')
+  ],
+  syncActiveChatRouteSource,
+  { immediate: true }
+)
 
 function messageStatusText(status: string): string {
   const map: Record<string, string> = {
@@ -564,6 +629,22 @@ onBeforeUnmount(() => {
             </option>
           </select>
         </label>
+        <label v-if="showActiveChatRouteSource">
+          上游
+          <select
+            :value="activeChatRouteSource"
+            :disabled="appShell.activeSessionStreaming"
+            @change="setActiveChatRouteSource"
+          >
+            <option
+              v-for="source in activeChatRouteSourceOptions"
+              :key="source.id"
+              :value="source.id"
+            >
+              {{ routeOptionLabel(source) }}
+            </option>
+          </select>
+        </label>
         <label>
           模型
           <select
@@ -571,11 +652,7 @@ onBeforeUnmount(() => {
             :disabled="appShell.activeSessionStreaming"
             @change="appShell.setActiveChatModel(($event.target as HTMLSelectElement).value)"
           >
-            <option
-              v-for="model in appShell.modelsForProvider(appShell.activeChatProviderId)"
-              :key="model"
-              :value="model"
-            >
+            <option v-for="model in filteredActiveChatModels" :key="model" :value="model">
               {{ model }}
             </option>
           </select>
