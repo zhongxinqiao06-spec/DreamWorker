@@ -26,7 +26,7 @@ let changed = false
 for (const [path, content] of outputs) {
   if (isCheck) {
     const current = readOptional(path)
-    if (current !== content) {
+    if (normalizeLineEndings(current) !== normalizeLineEndings(content)) {
       console.error(`${path} is not up to date. Run npm run specs:generate.`)
       changed = true
     }
@@ -145,4 +145,8 @@ function readOptional(path) {
   } catch {
     return null
   }
+}
+
+function normalizeLineEndings(content) {
+  return content?.replace(/\r\n/g, '\n') ?? null
 }
