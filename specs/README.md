@@ -1,6 +1,6 @@
 # DreamWorker Specs
 
-`specs/` 是 DreamWorker 跨进程、跨运行时契约的事实源。当前 schema 版本统一为 `0.1`，用于 Go Engine、Electron typed API、fixtures、contract tests 和后续 SDK。
+`specs/` 是 DreamWorker 跨进程、跨运行时契约的事实源。当前 schema 版本统一为 `0.1`，用于 Go Engine、Electron typed API、fixtures、contract tests 和后续 SDK/conformance。
 
 ## 当前覆盖
 
@@ -19,10 +19,22 @@
 
 `npm run specs:generate` 从 JSON Schema 生成：
 
-- TypeScript contracts：供 Electron shared/renderer/preload/main 使用。
-- Go contracts：供 Engine domain/runtime 使用。
+- `apps/desktop/shared/generated/contracts.ts`：TypeScript contracts，供 Electron shared/renderer/preload/main 使用。
+- `engine/internal/contracts/generated/contracts.go`：Go runtime contract subset，当前覆盖 RuntimePing、error、event 和 artifact metadata 等 Engine 基础契约。
 
 生成产物不得手写；schema 变更必须同步 fixtures、generated contracts 和 tests。
+
+## 工作流
+
+修改 schema 时按这个顺序推进：
+
+1. 更新对应 `*.schema.json`。
+2. 更新 `specs/fixtures/valid/<name>.json` 与 `specs/fixtures/invalid/<name>.json`。
+3. 运行 `npm run specs:generate`。
+4. 按需要补 `apps/desktop/shared/contracts.test.ts`、Engine contract tests 或 runtime tests。
+5. 运行 `npm run specs:check`。
+
+只改文档时不需要重新生成 contracts。
 
 ## Versioning
 
@@ -42,7 +54,7 @@ specs/fixtures/valid/<name>.json
 specs/fixtures/invalid/<name>.json
 ```
 
-这些 fixtures 是 CI 的 contract smoke，新增字段必须更新对应样例。
+这些 fixtures 是 CI 的 contract smoke，新增字段必须更新对应样例。invalid fixture 应验证真实失败路径，不能只依赖空对象。
 
 ## Validation
 
@@ -65,3 +77,10 @@ npm run specs:check
 | artifact / blueprint | Product + Engine | UI, Eval         | 产物生成变更     |
 | agent / task         | Runtime          | Engine, UI       | Agent loop 变更  |
 | error                | Platform         | UI, Diagnostics  | 用户错误展示变更 |
+
+## 边界
+
+- `specs/` 描述稳定契约，不写 UI 文案、不写 provider 私有 payload、不保存密钥。
+- Provider 原始流式事件必须在 Engine 内归一化为 DreamWorker typed stream event 后再进入 UI。
+- MCP、Tool、Skill 的高风险动作必须能通过 policy/approval 契约表达。
+- 后续 SDK、examples、conformance 都应从本目录读取契约，而不是复制 Renderer 或 Engine 私有类型。
