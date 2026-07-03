@@ -1,6 +1,10 @@
 ﻿import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DreamWorkerApi, Project, ProjectDirectoryCheck } from '../../../shared/dreamworker-api'
+import type {
+  DreamWorkerApi,
+  Project,
+  ProjectDirectoryCheck
+} from '../../../shared/dreamworker-api'
 import {
   ALL_MODEL_ROUTE_SOURCE,
   isRoutedModelProvider,
@@ -48,6 +52,13 @@ function createDreamWorkerApiStub(): DreamWorkerApi {
         ok: true,
         engineVersion: '0.1.0',
         trace_id: 'tr_store'
+      })
+    },
+    system: {
+      openExternal: vi.fn().mockResolvedValue({
+        ok: true,
+        url: 'http://localhost:20128/dashboard',
+        message: null
       })
     },
     models: {

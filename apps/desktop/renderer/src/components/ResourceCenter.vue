@@ -4,6 +4,7 @@ import {
   Bot,
   Copy,
   DatabaseZap,
+  ExternalLink,
   Eye,
   EyeOff,
   KeyRound,
@@ -29,30 +30,14 @@ import {
   type ModelRouteSourceOption,
   type ProviderTemplateId
 } from '../stores/app-shell'
-import type {
-  ProviderStatus,
-  ProviderType,
-  SafeModelProvider
-} from '../../../shared/dreamworker-api'
+import { providerLogoForProvider } from '../utils/provider-icons'
+import type { ProviderStatus, SafeModelProvider } from '../../../shared/dreamworker-api'
 
 const appShell = useAppShellStore()
 const extensionPanelMode = ref<'config' | 'console'>('config')
 const extensionConsoleRevision = ref(0)
 const showProviderApiKey = ref(false)
 const activeProviderRouteSource = ref(ALL_MODEL_ROUTE_SOURCE)
-
-const providerLogoSrc: Record<ProviderType, string> = {
-  deepseek: '/provider-icons/deepseek.svg',
-  siliconflow: '/provider-icons/siliconflow.svg',
-  glm: '/provider-icons/glm.png',
-  openai: '/provider-icons/openai.svg',
-  anthropic: '/provider-icons/anthropic.ico',
-  openai_compatible: '/provider-icons/openai.svg',
-  volcano: '/provider-icons/volcano.png',
-  gemini: '/provider-icons/gemini.png',
-  ollama: '/provider-icons/ollama.png',
-  custom: '/provider-icons/openai.svg'
-}
 
 const filteredProviders = computed(() => {
   const keyword = appShell.providerSearch.trim().toLowerCase()
@@ -108,10 +93,7 @@ function providerInitial(providerName: string): string {
 }
 
 function providerLogo(provider: SafeModelProvider): string {
-  if (provider.providerId === 'provider_9router_local') {
-    return '/provider-icons/9router.svg'
-  }
-  return providerLogoSrc[provider.providerType]
+  return providerLogoForProvider(provider)
 }
 
 function statusText(status: ProviderStatus | string | undefined): string {
@@ -160,6 +142,20 @@ function normalizeDashboardUrl(value: string): string {
     return url.toString()
   } catch {
     return trimmed
+  }
+}
+
+async function openExtensionConsole(): Promise<void> {
+  try {
+    const result = await window.dreamworker.system.openExternal(extensionConsoleUrl.value)
+    appShell.showResourceNotice(
+      result.ok
+        ? '已在系统浏览器打开 9Router 控制台'
+        : (result.message ?? '无法打开 9Router 控制台'),
+      result.ok ? 'success' : 'error'
+    )
+  } catch (error) {
+    appShell.showResourceFailure(error, '无法打开 9Router 控制台')
   }
 }
 
@@ -596,6 +592,10 @@ async function copyProviderApiKey(): Promise<void> {
             </button>
           </div>
           <div class="horizontal-actions">
+            <button type="button" @click="openExtensionConsole">
+              <ExternalLink :size="15" aria-hidden="true" />
+              打开控制台
+            </button>
             <button
               v-if="extensionPanelMode === 'console'"
               type="button"
@@ -759,7 +759,7 @@ async function copyProviderApiKey(): Promise<void> {
               :key="`${extensionConsoleUrl}-${extensionConsoleRevision}`"
               :src="extensionConsoleUrl"
               title="9Router Web 控制台"
-              sandbox="allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
+              sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
             />
           </div>
         </section>

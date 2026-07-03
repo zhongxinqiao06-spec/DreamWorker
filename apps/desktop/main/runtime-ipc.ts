@@ -6,6 +6,7 @@ import {
   type ProjectLocalDirectoryActionResult,
   type RuntimePingResponse
 } from '../shared/dreamworker-api'
+import { openExternalHttpUrl } from './external-url'
 import { createRuntimePingStubResponse } from './runtime-ping'
 
 export type RuntimePingProvider = () => Promise<RuntimePingResponse> | RuntimePingResponse
@@ -127,6 +128,11 @@ export function registerRuntimeIpcHandlers(
 ): void {
   ipcMain.handle(CHANNELS.runtimePing, () => runtimePingProvider())
 
+  ipcMain.handle(CHANNELS.systemOpenExternal, (_event, payload: unknown) => {
+    const url = isRecord(payload) && typeof payload.url === 'string' ? payload.url : ''
+    return openExternalHttpUrl(url)
+  })
+
   ipcMain.handle(CHANNELS.projectsPickLocalDirectory, async () => {
     const result = await dialog.showOpenDialog({
       title: '选择项目本地目录',
@@ -142,7 +148,8 @@ export function registerRuntimeIpcHandlers(
     if (!engineRequestProvider) {
       throw new Error('Go Engine is not connected.')
     }
-    const projectId = isRecord(payload) && typeof payload.projectId === 'string' ? payload.projectId : ''
+    const projectId =
+      isRecord(payload) && typeof payload.projectId === 'string' ? payload.projectId : ''
     const check = await engineRequestProvider<ProjectDirectoryCheck>(
       '/projects/local-directory/validate',
       { method: 'POST', body: { projectId } }

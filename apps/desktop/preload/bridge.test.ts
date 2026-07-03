@@ -8,6 +8,7 @@ describe('preload typed API contract', () => {
 
     expect(Object.keys(api)).toEqual([
       'runtime',
+      'system',
       'models',
       'settings',
       'extensions',
@@ -38,6 +39,24 @@ describe('preload typed API contract', () => {
 
     await expect(api.runtime.ping()).resolves.toEqual(response)
     expect(invoke).toHaveBeenCalledWith(CHANNELS.runtimePing)
+  })
+
+  it('routes system.openExternal through a typed IPC channel', async () => {
+    const invoke = vi.fn().mockResolvedValue({
+      ok: true,
+      url: 'http://localhost:20128/dashboard',
+      message: null
+    })
+    const api = createDreamWorkerApi(invoke)
+
+    await expect(api.system.openExternal('http://localhost:20128/dashboard')).resolves.toEqual({
+      ok: true,
+      url: 'http://localhost:20128/dashboard',
+      message: null
+    })
+    expect(invoke).toHaveBeenCalledWith(CHANNELS.systemOpenExternal, {
+      url: 'http://localhost:20128/dashboard'
+    })
   })
 
   it('routes resource calls through explicit IPC channels without raw IPC exposure', async () => {

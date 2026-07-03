@@ -7,6 +7,7 @@ export const CONTRACT_SCHEMA_VERSION = '0.1'
 
 export const CHANNELS = {
   runtimePing: 'runtime:ping',
+  systemOpenExternal: 'system:openExternal',
   modelsListProviders: 'models:listProviders',
   modelsSaveProvider: 'models:saveProvider',
   modelsDeleteProvider: 'models:deleteProvider',
@@ -448,11 +449,7 @@ export type CreateProjectInput = {
 }
 
 export type ProjectLocalDirectoryStatus =
-  | 'not_set'
-  | 'valid'
-  | 'missing'
-  | 'invalid'
-  | 'permission_denied'
+  'not_set' | 'valid' | 'missing' | 'invalid' | 'permission_denied'
 
 export type ProjectModuleId = 'explore' | 'product' | 'development' | 'sales'
 
@@ -823,9 +820,18 @@ export type DeleteResult = {
   readonly deletedId: string
 }
 
+export type OpenExternalResult = {
+  readonly ok: boolean
+  readonly url: string
+  readonly message: string | null
+}
+
 export type DreamWorkerApi = {
   readonly runtime: {
     readonly ping: () => Promise<RuntimePingResponse>
+  }
+  readonly system: {
+    readonly openExternal: (url: string) => Promise<OpenExternalResult>
   }
   readonly models: {
     readonly listProviders: () => Promise<readonly SafeModelProvider[]>

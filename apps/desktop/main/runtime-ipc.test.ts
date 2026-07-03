@@ -10,7 +10,8 @@ const electronMock = vi.hoisted(() => {
       handlers.set(channel, handler)
     }),
     showOpenDialog: vi.fn(),
-    openPath: vi.fn()
+    openPath: vi.fn(),
+    openExternal: vi.fn()
   }
 })
 
@@ -22,7 +23,8 @@ vi.mock('electron', () => ({
     showOpenDialog: electronMock.showOpenDialog
   },
   shell: {
-    openPath: electronMock.openPath
+    openPath: electronMock.openPath,
+    openExternal: electronMock.openExternal
   }
 }))
 
@@ -32,6 +34,7 @@ describe('runtime ipc project directory handlers', () => {
     electronMock.handle.mockClear()
     electronMock.showOpenDialog.mockReset()
     electronMock.openPath.mockReset()
+    electronMock.openExternal.mockReset()
   })
 
   it('opens a creatable directory picker for project local roots', async () => {
@@ -57,6 +60,26 @@ describe('runtime ipc project directory handlers', () => {
 
     const handler = electronMock.handlers.get(CHANNELS.projectsPickLocalDirectory)
     await expect(handler?.()).resolves.toBeNull()
+  })
+
+  it('opens only http urls through the system external channel', async () => {
+    registerRuntimeIpcHandlers()
+    electronMock.openExternal.mockResolvedValue(undefined)
+
+    const handler = electronMock.handlers.get(CHANNELS.systemOpenExternal)
+    await expect(handler?.(null, { url: 'http://localhost:20128/dashboard' })).resolves.toEqual({
+      ok: true,
+      url: 'http://localhost:20128/dashboard',
+      message: null
+    })
+    await expect(handler?.(null, { url: 'file:///C:/secret.txt' })).resolves.toEqual({
+      ok: false,
+      url: 'file:///C:/secret.txt',
+      message: 'Only http and https URLs can be opened externally.'
+    })
+
+    expect(electronMock.openExternal).toHaveBeenCalledTimes(1)
+    expect(electronMock.openExternal).toHaveBeenCalledWith('http://localhost:20128/dashboard')
   })
 
   it('validates the project directory before opening it', async () => {

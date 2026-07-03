@@ -25,11 +25,11 @@ import {
   type ModelRouteSourceOption
 } from '../stores/app-shell'
 import { isNearScrollBottom } from '../utils/chat-scroll'
+import { providerLogoForProvider } from '../utils/provider-icons'
 import type {
   ChatMessage,
   ChatModelUsage,
   ModelProfile,
-  ProviderType,
   SafeModelProvider,
   SkillRuntimeDescriptor,
   ToolRuntimeDescriptor
@@ -44,19 +44,6 @@ let scrollSyncTimer: number | undefined
 let suppressScrollSync = false
 let previousScrollMessageCount = 0
 let previousScrollSessionId = ''
-
-const providerLogoSrc: Record<ProviderType, string> = {
-  deepseek: '/provider-icons/deepseek.svg',
-  siliconflow: '/provider-icons/siliconflow.svg',
-  glm: '/provider-icons/glm.png',
-  openai: '/provider-icons/openai.svg',
-  anthropic: '/provider-icons/anthropic.ico',
-  openai_compatible: '/provider-icons/openai.svg',
-  volcano: '/provider-icons/volcano.png',
-  gemini: '/provider-icons/gemini.png',
-  ollama: '/provider-icons/ollama.png',
-  custom: '/provider-icons/openai.svg'
-}
 
 const activeAgentName = computed(() => appShell.activeAgent?.displayName ?? '通用助手')
 const activeProjectTitle = computed(() => {
@@ -261,11 +248,7 @@ function modelProfileForMessage(message: ChatMessage): ModelProfile | undefined 
 }
 
 function providerLogoForMessage(message: ChatMessage): string {
-  const provider = activeProviderForMessage(message)
-  if (provider?.providerId === 'provider_9router_local') {
-    return '/provider-icons/9router.svg'
-  }
-  return provider ? providerLogoSrc[provider.providerType] : '/provider-icons/openai.svg'
+  return providerLogoForProvider(activeProviderForMessage(message))
 }
 
 function messageProviderName(message: ChatMessage): string {

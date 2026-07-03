@@ -1,7 +1,8 @@
-import { app, BrowserWindow, session, shell } from 'electron'
+import { app, BrowserWindow, session } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { join } from 'node:path'
 import { startEngineDaemon, type EngineDaemon } from './engine-daemon'
+import { openExternalHttpUrl } from './external-url'
 import { registerRuntimeIpcHandlers } from './runtime-ipc'
 import { createRuntimePingStubResponse } from './runtime-ping'
 import { createMainWindowOptions } from './window-options'
@@ -66,7 +67,7 @@ function createMainWindow(): void {
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url)
+    void openExternalHttpUrl(url)
     return { action: 'deny' }
   })
 

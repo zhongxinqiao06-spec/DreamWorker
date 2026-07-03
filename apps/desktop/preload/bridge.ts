@@ -23,6 +23,7 @@ import {
   type InstallExtensionInput,
   type McpServerConfig,
   type ModelProfile,
+  type OpenExternalResult,
   type Project,
   type ProjectDirectoryCheck,
   type ProjectLocalDirectoryActionResult,
@@ -66,6 +67,10 @@ export function createDreamWorkerApi(invoke: IpcInvoke, listen?: IpcListen): Dre
   return {
     runtime: {
       ping: () => invokeTyped<RuntimePingResponse>(invoke, CHANNELS.runtimePing)
+    },
+    system: {
+      openExternal: (url: string) =>
+        invokeTyped<OpenExternalResult>(invoke, CHANNELS.systemOpenExternal, { url })
     },
     models: {
       listProviders: () =>
