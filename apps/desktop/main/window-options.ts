@@ -1,7 +1,10 @@
 import type { BrowserWindowConstructorOptions } from 'electron'
 
-export function createMainWindowOptions(preloadPath: string): BrowserWindowConstructorOptions {
-  return {
+export function createMainWindowOptions(
+  preloadPath: string,
+  iconPath?: string
+): BrowserWindowConstructorOptions {
+  const options: BrowserWindowConstructorOptions = {
     width: 1600,
     height: 960,
     minWidth: 1280,
@@ -23,4 +26,8 @@ export function createMainWindowOptions(preloadPath: string): BrowserWindowConst
       sandbox: true
     }
   }
+  if (iconPath) {
+    options.icon = iconPath
+  }
+  return options
 }

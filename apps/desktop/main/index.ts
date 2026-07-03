@@ -59,7 +59,10 @@ function installRendererNetworkGuard(): void {
 function createMainWindow(): void {
   installRendererNetworkGuard()
   const mainWindow = new BrowserWindow(
-    createMainWindowOptions(join(__dirname, '../preload/index.cjs'))
+    createMainWindowOptions(
+      join(__dirname, '../preload/index.cjs'),
+      join(__dirname, '../../build/icon.ico')
+    )
   )
 
   mainWindow.once('ready-to-show', () => {

@@ -36,4 +36,13 @@ describe('main window security options', () => {
       height: 40
     })
   })
+
+  it('uses the packaged DreamWorker icon when one is provided', () => {
+    const options = createMainWindowOptions(
+      'C:\\project\\DreamWorker\\apps\\desktop\\out\\preload\\index.cjs',
+      'C:\\project\\DreamWorker\\apps\\desktop\\build\\icon.ico'
+    )
+
+    expect(options.icon).toBe('C:\\project\\DreamWorker\\apps\\desktop\\build\\icon.ico')
+  })
 })

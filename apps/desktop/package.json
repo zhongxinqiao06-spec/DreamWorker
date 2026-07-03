@@ -27,6 +27,7 @@
     },
     "files": [
       "out/**/*",
+      "build/icon.ico",
       "package.json"
     ],
     "extraResources": [
@@ -41,6 +42,7 @@
     ],
     "asar": true,
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         "nsis"
       ]
@@ -50,7 +52,9 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "DreamWorker"
+      "installerIcon": "build/icon.ico",
+      "shortcutName": "DreamWorker",
+      "uninstallerIcon": "build/icon.ico"
     }
   },
   "devDependencies": {
