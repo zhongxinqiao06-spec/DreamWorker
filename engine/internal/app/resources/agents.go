@@ -39,6 +39,9 @@ func (s *Store) SaveAgent(input AgentConfig) (AgentConfig, *AppError) {
 	input = s.ensureAgentModelDefaultsLocked(input)
 	input.UpdatedAt = now
 	s.Agents[input.AgentID] = input
+	if appErr := s.persistWorkspaceLocked(); appErr != nil {
+		return AgentConfig{}, appErr
+	}
 	return input, nil
 }
 
@@ -91,6 +94,9 @@ func (s *Store) DuplicateAgent(agentID string) (AgentConfig, *AppError) {
 	agent.CreatedAt = now
 	agent.UpdatedAt = now
 	s.Agents[agent.AgentID] = agent
+	if appErr := s.persistWorkspaceLocked(); appErr != nil {
+		return AgentConfig{}, appErr
+	}
 	return agent, nil
 }
 
@@ -101,6 +107,9 @@ func (s *Store) DeleteAgent(agentID string) (DeleteResult, *AppError) {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 	delete(s.Agents, agentID)
+	if appErr := s.persistWorkspaceLocked(); appErr != nil {
+		return DeleteResult{}, appErr
+	}
 	return DeleteResult{OK: true, DeletedID: agentID}, nil
 }
 

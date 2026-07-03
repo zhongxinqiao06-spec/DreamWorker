@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/adapters/modelgateway"
+	sqliteadapter "github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/adapters/sqlite"
 	"github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/api/runtimeapi"
 	"github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/app/workspace"
 )
@@ -60,10 +61,18 @@ func runServe(args []string, stdout io.Writer, stderr io.Writer) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	store := workspace.NewStore(
+	configDir := workspace.DefaultConfigDir()
+	persistenceOptions, err := sqliteadapter.WorkspacePersistenceOptions(configDir)
+	if err != nil {
+		return fmt.Errorf("open workspace persistence: %w", err)
+	}
+	storeOptions := []workspace.StoreOption{
 		workspace.WithTraceID(runtimeapi.NewTraceID),
 		workspace.WithModelGateway(modelgateway.NewGateway()),
-		workspace.WithConfigDir(workspace.DefaultConfigDir()),
-	)
+		workspace.WithConfigDir(configDir),
+	}
+	storeOptions = append(storeOptions, persistenceOptions...)
+	store := workspace.NewStore(storeOptions...)
+	defer func() { _ = store.Close() }()
 	return runtimeapi.ServeWithStore(ctx, *token, stdout, store)
 }

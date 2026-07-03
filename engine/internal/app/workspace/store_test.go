@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	sqliteadapter "github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/adapters/sqlite"
 	"github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/ports"
 )
 
@@ -17,6 +18,24 @@ func newTestStore() *Store {
 		WithClock(func() string { return "2026-07-01T00:00:00Z" }),
 		WithTraceID(func() string { return "tr_test" }),
 	)
+}
+
+func newPersistentTestStore(t *testing.T, configDir string, agentDir string) *Store {
+	t.Helper()
+	persistenceOptions, err := sqliteadapter.WorkspacePersistenceOptions(configDir)
+	if err != nil {
+		t.Fatalf("open workspace persistence: %v", err)
+	}
+	options := []StoreOption{
+		WithClock(func() string { return "2026-07-01T00:00:00Z" }),
+		WithTraceID(func() string { return "tr_test" }),
+		WithConfigDir(configDir),
+		WithAgentDir(agentDir),
+	}
+	options = append(options, persistenceOptions...)
+	store := NewStore(options...)
+	t.Cleanup(func() { _ = store.Close() })
+	return store
 }
 
 type testGateway struct {
@@ -73,11 +92,8 @@ func TestProvidersNeverExposeRawAPIKey(t *testing.T) {
 
 func TestProviderConfigPersistsAPIKeyWithoutRendererLeak(t *testing.T) {
 	configDir := t.TempDir()
-	store := NewStore(
-		WithClock(func() string { return "2026-07-01T00:00:00Z" }),
-		WithTraceID(func() string { return "tr_test" }),
-		WithConfigDir(configDir),
-	)
+	agentDir := t.TempDir()
+	store := newPersistentTestStore(t, configDir, agentDir)
 
 	provider, appErr := store.SaveProvider(SaveModelProviderInput{
 		ProviderID:      "provider_persisted",
@@ -107,11 +123,7 @@ func TestProviderConfigPersistsAPIKeyWithoutRendererLeak(t *testing.T) {
 		t.Fatalf("expected provider key to be persisted")
 	}
 
-	reloaded := NewStore(
-		WithClock(func() string { return "2026-07-01T00:00:00Z" }),
-		WithTraceID(func() string { return "tr_test" }),
-		WithConfigDir(configDir),
-	)
+	reloaded := newPersistentTestStore(t, configDir, agentDir)
 	var found *SafeModelProvider
 	for _, item := range reloaded.ListProviders() {
 		if item.ProviderID == "provider_persisted" {
@@ -122,6 +134,205 @@ func TestProviderConfigPersistsAPIKeyWithoutRendererLeak(t *testing.T) {
 	}
 	if found == nil || !found.HasAPIKey || found.MaskedKey == nil || *found.MaskedKey != "sk-p...cret" {
 		t.Fatalf("expected reloaded safe provider with masked key, got %#v", found)
+	}
+}
+
+func TestWorkspaceSQLitePersistsProjectsChatAndResources(t *testing.T) {
+	configDir := t.TempDir()
+	agentDir := t.TempDir()
+	localRoot := t.TempDir()
+	store := newPersistentTestStore(t, configDir, agentDir)
+
+	if _, err := os.Stat(filepath.Join(configDir, "workspace.db")); err != nil {
+		t.Fatalf("expected workspace.db to be created: %v", err)
+	}
+	if _, appErr := store.SaveProvider(SaveModelProviderInput{
+		ProviderID:      "provider_workspace",
+		ProviderType:    ProviderOpenAICompatible,
+		DisplayName:     "Workspace Provider",
+		BaseURL:         "https://api.example.com/v1",
+		DefaultModel:    "workspace-chat",
+		AvailableModels: []string{"workspace-chat"},
+		Enabled:         true,
+		Capabilities:    []string{"chat", "tools"},
+		APIKey:          "sk-workspace-secret",
+	}); appErr != nil {
+		t.Fatalf("save provider: %v", appErr)
+	}
+	if _, appErr := store.SaveProfile(ModelProfile{
+		ProfileID:   "profile_workspace",
+		DisplayName: "Workspace Profile",
+		ProviderID:  "provider_workspace",
+		Model:       "workspace-chat",
+		Temperature: 0.2,
+		MaxTokens:   512,
+		Purpose:     "workspace persistence",
+		Enabled:     true,
+	}); appErr != nil {
+		t.Fatalf("save profile: %v", appErr)
+	}
+	if _, appErr := store.SaveTool(ToolConfig{
+		ToolID:      "tool_workspace",
+		DisplayName: "Workspace Tool",
+		Description: "persisted tool",
+		Category:    "project",
+		RiskLevel:   "low",
+		Enabled:     true,
+	}); appErr != nil {
+		t.Fatalf("save tool: %v", appErr)
+	}
+	if _, appErr := store.SaveMCPServer(SaveMCPServerInput{
+		ServerID:    "mcp_workspace",
+		DisplayName: "Workspace MCP",
+		Command:     "dreamworker-mcp",
+		TrustLevel:  "local_unverified",
+		Enabled:     true,
+		Secrets:     map[string]string{"MCP_TOKEN": "mcp-workspace-secret"},
+	}); appErr != nil {
+		t.Fatalf("save mcp: %v", appErr)
+	}
+	if _, appErr := store.SaveSkill(SkillConfig{
+		SkillID:              "skill_workspace",
+		DisplayName:          "Workspace Skill",
+		Description:          "persists skill metadata",
+		Instructions:         "## Instructions\n\nKeep this skill after restart.",
+		Category:             "project",
+		Version:              "0.1.0",
+		RequiredCapabilities: []string{"cap_artifact_write"},
+		OutputArtifacts:      []string{"workspace.md"},
+	}); appErr != nil {
+		t.Fatalf("save skill: %v", appErr)
+	}
+	if _, appErr := store.SaveAgent(AgentConfig{
+		AgentID:           "agent_workspace",
+		DisplayName:       "Workspace Agent",
+		Role:              "tester",
+		Description:       "persists agent metadata",
+		SystemPrompt:      "Persist this agent.",
+		ModelProfileID:    "profile_workspace",
+		EnabledSkills:     []string{"skill_workspace"},
+		EnabledTools:      []string{"tool_workspace"},
+		EnabledMCPServers: []string{"mcp_workspace"},
+		Enabled:           true,
+	}); appErr != nil {
+		t.Fatalf("save agent: %v", appErr)
+	}
+
+	project, appErr := store.CreateProject(CreateProjectInput{
+		Title:         "SQLite Project",
+		Description:   "project survives restart",
+		LocalRootPath: &localRoot,
+	})
+	if appErr != nil {
+		t.Fatalf("create project: %v", appErr)
+	}
+	if _, appErr := store.InitializeLocalDirectory(project.ProjectID); appErr != nil {
+		t.Fatalf("initialize directory: %v", appErr)
+	}
+	if _, appErr := store.UpdateProjectModuleConfig(UpdateModuleConfigInput{
+		ProjectID: project.ProjectID,
+		ModuleID:  "development",
+		Config: map[string]any{
+			"owner": "engineering",
+			"ready": true,
+		},
+	}); appErr != nil {
+		t.Fatalf("update module config: %v", appErr)
+	}
+	session, appErr := store.CreateChatSession(CreateChatSessionInput{
+		ProjectID:      &project.ProjectID,
+		Title:          "SQLite Chat",
+		AgentID:        "agent_evaluator",
+		ModelProfileID: "profile_stub",
+	})
+	if appErr != nil {
+		t.Fatalf("create chat session: %v", appErr)
+	}
+	turn, appErr := store.SendChatMessage(SendChatMessageInput{
+		SessionID: session.SessionID,
+		Content:   "persist this message",
+	})
+	if appErr != nil {
+		t.Fatalf("send chat message: %v", appErr)
+	}
+	if turn.Session.MessageCount != 2 {
+		t.Fatalf("expected two persisted messages, got %d", turn.Session.MessageCount)
+	}
+
+	reloaded := newPersistentTestStore(t, configDir, agentDir)
+	reloadedProject, appErr := reloaded.GetProject(project.ProjectID)
+	if appErr != nil {
+		t.Fatalf("get reloaded project: %v", appErr)
+	}
+	if reloadedProject.LocalRootPath == nil || *reloadedProject.LocalRootPath != localRoot || reloadedProject.LocalDirectoryStatus != "valid" {
+		t.Fatalf("expected project directory to persist, got %#v", reloadedProject)
+	}
+	modules, appErr := reloaded.ListProjectModules(project.ProjectID)
+	if appErr != nil {
+		t.Fatalf("list reloaded modules: %v", appErr)
+	}
+	var development ProjectModule
+	for _, module := range modules {
+		if module.ModuleID == "development" {
+			development = module
+			break
+		}
+	}
+	if development.Config["owner"] != "engineering" || development.Config["ready"] != true {
+		t.Fatalf("expected module config to persist, got %#v", development.Config)
+	}
+	messages, appErr := reloaded.ListChatMessages(session.SessionID)
+	if appErr != nil {
+		t.Fatalf("list reloaded chat messages: %v", appErr)
+	}
+	if len(messages) != 2 || messages[0].Content != "persist this message" || !strings.Contains(messages[1].Content, "Local streaming model received") {
+		t.Fatalf("expected chat messages to persist, got %#v", messages)
+	}
+	foundProvider := false
+	for _, provider := range reloaded.ListProviders() {
+		if provider.ProviderID == "provider_workspace" {
+			foundProvider = provider.HasAPIKey && provider.MaskedKey != nil && *provider.MaskedKey == "sk-w...cret"
+			break
+		}
+	}
+	if !foundProvider {
+		t.Fatalf("expected provider api key metadata to survive reload")
+	}
+	if _, appErr := reloaded.GetAgent("agent_workspace"); appErr != nil {
+		t.Fatalf("expected agent to persist: %v", appErr)
+	}
+	if _, appErr := reloaded.GetSkill("skill_workspace"); appErr != nil {
+		t.Fatalf("expected skill to persist: %v", appErr)
+	}
+	if _, appErr := reloaded.GetTool("tool_workspace"); appErr != nil {
+		t.Fatalf("expected tool to persist: %v", appErr)
+	}
+	foundMCP := false
+	for _, server := range reloaded.ListMCPServers() {
+		if server.ServerID == "mcp_workspace" {
+			foundMCP = server.HasSecrets && len(server.MaskedSecrets) == 1
+			break
+		}
+	}
+	if !foundMCP {
+		t.Fatalf("expected mcp server secrets metadata to survive reload")
+	}
+}
+
+func TestWorkspaceSQLiteSnapshotPreventsDefaultProjectReseedAfterDeletion(t *testing.T) {
+	configDir := t.TempDir()
+	agentDir := t.TempDir()
+	store := newPersistentTestStore(t, configDir, agentDir)
+	if _, appErr := store.GetProject("project_001"); appErr != nil {
+		t.Fatalf("expected seeded project: %v", appErr)
+	}
+	if _, appErr := store.DeleteProject("project_001"); appErr != nil {
+		t.Fatalf("delete seeded project: %v", appErr)
+	}
+
+	reloaded := newPersistentTestStore(t, configDir, agentDir)
+	if projects := reloaded.ListProjects(); len(projects) != 0 {
+		t.Fatalf("expected deleted default project not to be reseeded, got %#v", projects)
 	}
 }
 
@@ -214,6 +425,239 @@ func TestProjectModulesCarryProjectID(t *testing.T) {
 				t.Fatalf("submodule %s has module id %q, want %q", submodule.SubmoduleID, submodule.ModuleID, module.ModuleID)
 			}
 		}
+	}
+}
+
+func TestProjectDefaultsIncludeWorkspacePolicies(t *testing.T) {
+	store := newTestStore()
+	project, appErr := store.CreateProject(CreateProjectInput{
+		Title:       "Workspace defaults",
+		Description: "project space defaults",
+	})
+	if appErr != nil {
+		t.Fatalf("create project: %v", appErr)
+	}
+
+	if project.LocalRootPath != nil {
+		t.Fatalf("new project local root = %#v, want nil", project.LocalRootPath)
+	}
+	if project.LocalDirectoryStatus != "not_set" {
+		t.Fatalf("new project directory status = %q, want not_set", project.LocalDirectoryStatus)
+	}
+	if len(project.ModuleConfigs) != 4 {
+		t.Fatalf("expected four module configs, got %d", len(project.ModuleConfigs))
+	}
+	if project.ModuleConfigs["development"].OutputDir != "artifacts/development" {
+		t.Fatalf("unexpected development output dir: %#v", project.ModuleConfigs["development"])
+	}
+	if !project.MemoryConfig.ProjectMemoryEnabled || project.MemoryConfig.MaxContextTokens <= 0 {
+		t.Fatalf("unexpected memory defaults: %#v", project.MemoryConfig)
+	}
+	if project.RunPolicy.PlannerMode != "plan_execute" || project.RunPolicy.ExecutorMode != "safe" {
+		t.Fatalf("unexpected run policy defaults: %#v", project.RunPolicy)
+	}
+	if project.SecurityPolicy.FileAccessScope != "project_directory_only" || !project.SecurityPolicy.AllowWriteArtifacts {
+		t.Fatalf("unexpected security policy defaults: %#v", project.SecurityPolicy)
+	}
+}
+
+func TestInitializeLocalDirectoryCreatesWorkspaceLayout(t *testing.T) {
+	store := newTestStore()
+	root := t.TempDir()
+	project, appErr := store.CreateProject(CreateProjectInput{
+		Title:         "Local workspace",
+		Description:   "directory init",
+		LocalRootPath: &root,
+	})
+	if appErr != nil {
+		t.Fatalf("create project: %v", appErr)
+	}
+
+	check, appErr := store.ValidateLocalDirectory(project.ProjectID)
+	if appErr != nil {
+		t.Fatalf("validate directory: %v", appErr)
+	}
+	if check.Status != "invalid" {
+		t.Fatalf("pre-init status = %q, want invalid", check.Status)
+	}
+
+	check, appErr = store.InitializeLocalDirectory(project.ProjectID)
+	if appErr != nil {
+		t.Fatalf("initialize directory: %v", appErr)
+	}
+	if check.Status != "valid" || !check.DreamworkerInitialized {
+		t.Fatalf("post-init check = %#v, want valid initialized directory", check)
+	}
+	for _, relativePath := range []string{
+		".dreamworker",
+		".dreamworker/runs",
+		"docs",
+		"artifacts/explore",
+		"artifacts/product",
+		"artifacts/development",
+		"artifacts/sales",
+		"workspace/imports",
+		"workspace/exports",
+		"workspace/temp",
+		"source/repo",
+	} {
+		if info, err := os.Stat(filepath.Join(root, filepath.FromSlash(relativePath))); err != nil || !info.IsDir() {
+			t.Fatalf("expected directory %s to exist, err=%v info=%#v", relativePath, err, info)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, ".dreamworker", "project.json")); err != nil {
+		t.Fatalf("project.json missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".dreamworker", "manifest.json")); err != nil {
+		t.Fatalf("manifest.json missing: %v", err)
+	}
+}
+
+func TestInitializeLocalDirectoryCreatesMissingRoot(t *testing.T) {
+	store := newTestStore()
+	root := filepath.Join(t.TempDir(), "missing", "nested-project")
+	if _, err := os.Stat(root); !os.IsNotExist(err) {
+		t.Fatalf("expected root to be missing before init, err=%v", err)
+	}
+	project, appErr := store.CreateProject(CreateProjectInput{
+		Title:         "Create missing root",
+		Description:   "directory creation",
+		LocalRootPath: &root,
+	})
+	if appErr != nil {
+		t.Fatalf("create project: %v", appErr)
+	}
+
+	check, appErr := store.InitializeLocalDirectory(project.ProjectID)
+	if appErr != nil {
+		t.Fatalf("initialize directory: %v", appErr)
+	}
+	if check.Status != "valid" || !check.Exists || !check.Writable {
+		t.Fatalf("expected initialized missing root to become valid, got %#v", check)
+	}
+	if info, err := os.Stat(root); err != nil || !info.IsDir() {
+		t.Fatalf("expected root directory to be created, err=%v info=%#v", err, info)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".dreamworker", "manifest.json")); err != nil {
+		t.Fatalf("manifest.json missing after creating root: %v", err)
+	}
+}
+
+func TestUpdateProjectLocalRootChangeInvalidatesPreviousDirectoryCheck(t *testing.T) {
+	store := newTestStore()
+	root := t.TempDir()
+	project, appErr := store.CreateProject(CreateProjectInput{
+		Title:         "Move root",
+		Description:   "path change invalidation",
+		LocalRootPath: &root,
+	})
+	if appErr != nil {
+		t.Fatalf("create project: %v", appErr)
+	}
+	if _, appErr := store.InitializeLocalDirectory(project.ProjectID); appErr != nil {
+		t.Fatalf("initialize directory: %v", appErr)
+	}
+	initialized, appErr := store.GetProject(project.ProjectID)
+	if appErr != nil {
+		t.Fatalf("get initialized project: %v", appErr)
+	}
+	if initialized.LocalDirectoryStatus != "valid" || initialized.LocalDirectoryLastCheckedAt == nil {
+		t.Fatalf("expected valid initialized project, got %#v", initialized)
+	}
+
+	nextRoot := t.TempDir()
+	updated, appErr := store.UpdateProject(UpdateProjectInput{
+		ProjectID:     project.ProjectID,
+		LocalRootPath: &nextRoot,
+	})
+	if appErr != nil {
+		t.Fatalf("update project local root: %v", appErr)
+	}
+	if updated.LocalRootPath == nil || *updated.LocalRootPath != nextRoot {
+		t.Fatalf("expected new local root, got %#v", updated.LocalRootPath)
+	}
+	if updated.LocalDirectoryStatus != "invalid" {
+		t.Fatalf("path change should invalidate directory status, got %q", updated.LocalDirectoryStatus)
+	}
+	if updated.LocalDirectoryLastCheckedAt != nil {
+		t.Fatalf("path change should clear previous check timestamp, got %#v", updated.LocalDirectoryLastCheckedAt)
+	}
+}
+
+func TestProjectManifestDoesNotLeakSecrets(t *testing.T) {
+	store := newTestStore()
+	_, appErr := store.SaveProvider(SaveModelProviderInput{
+		ProviderID:      "provider_secret",
+		ProviderType:    ProviderDeepSeek,
+		DisplayName:     "Secret provider",
+		BaseURL:         "https://api.example.com",
+		DefaultModel:    "deepseek-chat",
+		AvailableModels: []string{"deepseek-chat"},
+		Enabled:         true,
+		APIKey:          "sk-project-secret",
+	})
+	if appErr != nil {
+		t.Fatalf("save provider: %v", appErr)
+	}
+	_, appErr = store.SaveMCPServer(SaveMCPServerInput{
+		ServerID:    "mcp_secret",
+		DisplayName: "Secret MCP",
+		Command:     "mcp",
+		TrustLevel:  "local_unverified",
+		Enabled:     true,
+		Secrets:     map[string]string{"MCP_TOKEN": "mcp-secret-value"},
+	})
+	if appErr != nil {
+		t.Fatalf("save mcp: %v", appErr)
+	}
+
+	root := t.TempDir()
+	project, appErr := store.CreateProject(CreateProjectInput{
+		Title:         "Manifest",
+		Description:   "secret boundary",
+		LocalRootPath: &root,
+	})
+	if appErr != nil {
+		t.Fatalf("create project: %v", appErr)
+	}
+	if _, appErr := store.InitializeLocalDirectory(project.ProjectID); appErr != nil {
+		t.Fatalf("initialize directory: %v", appErr)
+	}
+	exported, appErr := store.ExportProjectManifest(project.ProjectID)
+	if appErr != nil {
+		t.Fatalf("export manifest: %v", appErr)
+	}
+	payload, err := json.Marshal(exported.Manifest)
+	if err != nil {
+		t.Fatalf("marshal manifest: %v", err)
+	}
+	if strings.Contains(string(payload), "sk-project-secret") || strings.Contains(string(payload), "mcp-secret-value") {
+		t.Fatalf("manifest leaked secret: %s", payload)
+	}
+	if exported.ManifestPath == nil {
+		t.Fatalf("expected manifest path")
+	}
+}
+
+func TestDeleteProjectDoesNotDeleteLocalDirectory(t *testing.T) {
+	store := newTestStore()
+	root := t.TempDir()
+	project, appErr := store.CreateProject(CreateProjectInput{
+		Title:         "Delete record only",
+		Description:   "local files survive",
+		LocalRootPath: &root,
+	})
+	if appErr != nil {
+		t.Fatalf("create project: %v", appErr)
+	}
+	if _, appErr := store.InitializeLocalDirectory(project.ProjectID); appErr != nil {
+		t.Fatalf("initialize directory: %v", appErr)
+	}
+	if _, appErr := store.DeleteProject(project.ProjectID); appErr != nil {
+		t.Fatalf("delete project: %v", appErr)
+	}
+	if info, err := os.Stat(root); err != nil || !info.IsDir() {
+		t.Fatalf("expected local directory to survive, err=%v info=%#v", err, info)
 	}
 }
 

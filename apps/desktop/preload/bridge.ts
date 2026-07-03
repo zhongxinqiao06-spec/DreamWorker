@@ -24,6 +24,9 @@ import {
   type McpServerConfig,
   type ModelProfile,
   type Project,
+  type ProjectDirectoryCheck,
+  type ProjectLocalDirectoryActionResult,
+  type ProjectManifestExport,
   type ProjectModule,
   type ProjectModuleId,
   type RuntimePingResponse,
@@ -174,6 +177,24 @@ export function createDreamWorkerApi(invoke: IpcInvoke, listen?: IpcListen): Dre
         invokeTyped<Project>(invoke, CHANNELS.projectsUpdate, input),
       deleteProject: (input: DeleteProjectInput) =>
         invokeTyped<DeleteResult>(invoke, CHANNELS.projectsDelete, input),
+      pickLocalDirectory: () =>
+        invokeTyped<string | null>(invoke, CHANNELS.projectsPickLocalDirectory),
+      validateLocalDirectory: (projectId: string) =>
+        invokeTyped<ProjectDirectoryCheck>(invoke, CHANNELS.projectsValidateLocalDirectory, {
+          projectId
+        }),
+      initializeLocalDirectory: (projectId: string) =>
+        invokeTyped<ProjectDirectoryCheck>(invoke, CHANNELS.projectsInitializeLocalDirectory, {
+          projectId
+        }),
+      openLocalDirectory: (projectId: string) =>
+        invokeTyped<ProjectLocalDirectoryActionResult>(
+          invoke,
+          CHANNELS.projectsOpenLocalDirectory,
+          { projectId }
+        ),
+      exportProjectManifest: (projectId: string) =>
+        invokeTyped<ProjectManifestExport>(invoke, CHANNELS.projectsExportManifest, { projectId }),
       listProjectModules: (projectId: string) =>
         invokeTyped<readonly ProjectModule[]>(invoke, CHANNELS.projectsListModules, { projectId }),
       getProjectModule: (projectId: string, moduleId: ProjectModuleId) =>

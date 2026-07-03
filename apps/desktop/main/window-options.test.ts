@@ -22,4 +22,18 @@ describe('main window security options', () => {
     expect(options.minWidth).toBeGreaterThan(1240)
     expect(options.height).toBeGreaterThanOrEqual(900)
   })
+
+  it('uses a themed title bar overlay for the AI OS shell', () => {
+    const options = createMainWindowOptions(
+      'C:\\project\\DreamWorker\\apps\\desktop\\out\\preload\\index.cjs'
+    )
+
+    expect(options.title).toBe('DreamWorker AI 工作台')
+    expect(options.titleBarStyle).toBe('hidden')
+    expect(options.titleBarOverlay).toEqual({
+      color: '#f8fafc',
+      symbolColor: '#0f172a',
+      height: 40
+    })
+  })
 })

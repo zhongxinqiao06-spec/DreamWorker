@@ -14,6 +14,10 @@ type Store struct {
 	Mu               sync.Mutex
 	Now              func() string
 	TraceID          func() string
+	PersistWorkspace func(*Store) *AppError
+	CloseWorkspace   func() error
+	InitialSnapshot  *WorkspaceSnapshot
+	SnapshotLoaded   bool
 	Sequence         int
 	Streams          map[string]contextCancel
 	ModelGateway     ModelGateway
@@ -46,6 +50,25 @@ func WithClock(now func() string) StoreOption {
 func WithTraceID(traceID func() string) StoreOption {
 	return func(store *Store) {
 		store.TraceID = traceID
+	}
+}
+
+func WithWorkspacePersistence(persist func(*Store) *AppError) StoreOption {
+	return func(store *Store) {
+		store.PersistWorkspace = persist
+	}
+}
+
+func WithWorkspacePersistenceClose(close func() error) StoreOption {
+	return func(store *Store) {
+		store.CloseWorkspace = close
+	}
+}
+
+func WithInitialWorkspaceSnapshot(snapshot WorkspaceSnapshot) StoreOption {
+	return func(store *Store) {
+		copied := snapshot
+		store.InitialSnapshot = &copied
 	}
 }
 
@@ -95,6 +118,10 @@ func NewStore(options ...StoreOption) *Store {
 	store.seed()
 	store.loadProviderConfig()
 	store.loadAgentSkills()
+	if store.InitialSnapshot != nil {
+		store.ApplyWorkspaceSnapshotLocked(*store.InitialSnapshot)
+		store.SnapshotLoaded = true
+	}
 	return store
 }
 
@@ -217,4 +244,28 @@ func fallback(value string, fallbackValue string) string {
 
 func ptr(value string) *string {
 	return &value
+}
+
+func (s *Store) PersistWorkspaceSnapshot() *AppError {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	return s.persistWorkspaceLocked()
+}
+
+func (s *Store) PersistWorkspaceSnapshotLocked() *AppError {
+	return s.persistWorkspaceLocked()
+}
+
+func (s *Store) persistWorkspaceLocked() *AppError {
+	if s.PersistWorkspace == nil {
+		return nil
+	}
+	return s.PersistWorkspace(s)
+}
+
+func (s *Store) Close() error {
+	if s.CloseWorkspace == nil {
+		return nil
+	}
+	return s.CloseWorkspace()
 }

@@ -54,6 +54,11 @@ export const CHANNELS = {
   projectsGet: 'projects:getProject',
   projectsUpdate: 'projects:updateProject',
   projectsDelete: 'projects:deleteProject',
+  projectsPickLocalDirectory: 'projects:pickLocalDirectory',
+  projectsValidateLocalDirectory: 'projects:validateLocalDirectory',
+  projectsInitializeLocalDirectory: 'projects:initializeLocalDirectory',
+  projectsOpenLocalDirectory: 'projects:openLocalDirectory',
+  projectsExportManifest: 'projects:exportProjectManifest',
   projectsListModules: 'projects:listProjectModules',
   projectsGetModule: 'projects:getProjectModule',
   projectsUpdateModuleConfig: 'projects:updateProjectModuleConfig',
@@ -419,11 +424,19 @@ export type Project = {
   readonly title: string
   readonly description: string
   readonly status: 'active' | 'paused' | 'archived'
+  readonly localRootPath: string | null
+  readonly localDirectoryStatus: ProjectLocalDirectoryStatus
+  readonly localDirectoryLastCheckedAt: string | null
   readonly defaultModelProfileId: string
+  readonly defaultRouteProfileId: string | null
   readonly enabledAgents: readonly string[]
   readonly enabledSkills: readonly string[]
   readonly enabledTools: readonly string[]
   readonly enabledMcpServers: readonly string[]
+  readonly moduleConfigs: ProjectModuleConfigs
+  readonly memoryConfig: ProjectMemoryConfig
+  readonly runPolicy: ProjectRunPolicy
+  readonly securityPolicy: ProjectSecurityPolicy
   readonly createdAt: string
   readonly updatedAt: string
 }
@@ -431,6 +444,85 @@ export type Project = {
 export type CreateProjectInput = {
   readonly title: string
   readonly description: string
+  readonly localRootPath?: string | null
+}
+
+export type ProjectLocalDirectoryStatus =
+  | 'not_set'
+  | 'valid'
+  | 'missing'
+  | 'invalid'
+  | 'permission_denied'
+
+export type ProjectModuleId = 'explore' | 'product' | 'development' | 'sales'
+
+export type ProjectModuleConfig = {
+  readonly enabled: boolean
+  readonly defaultAgentIds: readonly string[]
+  readonly enabledSkillIds: readonly string[]
+  readonly enabledToolIds: readonly string[]
+  readonly enabledMcpServerIds: readonly string[]
+  readonly outputDir: string
+  readonly inputSchema: Record<string, unknown>
+  readonly parameters: Record<string, unknown>
+}
+
+export type ProjectModuleConfigs = Readonly<Record<ProjectModuleId, ProjectModuleConfig>>
+
+export type ProjectMemoryConfig = {
+  readonly projectMemoryEnabled: boolean
+  readonly artifactIndexEnabled: boolean
+  readonly localFileIndexEnabled: boolean
+  readonly maxContextTokens: number
+}
+
+export type ProjectRunPolicy = {
+  readonly plannerMode: 'plan_execute' | 'manual' | 'react'
+  readonly executorMode: 'safe' | 'balanced' | 'aggressive'
+  readonly maxRunCostUsd: number
+  readonly maxRunMinutes: number
+  readonly requireApprovalForHighRiskTools: boolean
+}
+
+export type ProjectSecurityPolicy = {
+  readonly fileAccessScope: 'project_directory_only' | 'selected_directories' | 'read_only'
+  readonly allowWriteArtifacts: boolean
+  readonly allowWriteSource: boolean
+  readonly allowShellExecution: boolean
+  readonly allowNetworkTools: boolean
+}
+
+export type ProjectDirectoryEntryCheck = {
+  readonly path: string
+  readonly exists: boolean
+}
+
+export type ProjectDirectoryCheck = {
+  readonly projectId: string
+  readonly localRootPath: string | null
+  readonly status: ProjectLocalDirectoryStatus
+  readonly lastCheckedAt: string
+  readonly exists: boolean
+  readonly readable: boolean
+  readonly writable: boolean
+  readonly dreamworkerInitialized: boolean
+  readonly requiredDirectories: readonly ProjectDirectoryEntryCheck[]
+  readonly message: string
+}
+
+export type ProjectLocalDirectoryActionResult = {
+  readonly ok: boolean
+  readonly projectId: string
+  readonly localRootPath: string | null
+  readonly message: string
+  readonly check?: ProjectDirectoryCheck
+}
+
+export type ProjectManifestExport = {
+  readonly projectId: string
+  readonly localRootPath: string | null
+  readonly manifestPath: string | null
+  readonly manifest: Record<string, unknown>
 }
 
 export type UpdateProjectInput = Partial<
@@ -439,11 +531,17 @@ export type UpdateProjectInput = Partial<
     | 'title'
     | 'description'
     | 'status'
+    | 'localRootPath'
     | 'defaultModelProfileId'
+    | 'defaultRouteProfileId'
     | 'enabledAgents'
     | 'enabledSkills'
     | 'enabledTools'
     | 'enabledMcpServers'
+    | 'moduleConfigs'
+    | 'memoryConfig'
+    | 'runPolicy'
+    | 'securityPolicy'
   >
 > & {
   readonly projectId: string
@@ -452,8 +550,6 @@ export type UpdateProjectInput = Partial<
 export type DeleteProjectInput = {
   readonly projectId: string
 }
-
-export type ProjectModuleId = 'explore' | 'product' | 'development' | 'sales'
 
 export type ProjectModuleStatus = 'idle' | 'ready' | 'running' | 'blocked' | 'completed'
 
@@ -796,6 +892,11 @@ export type DreamWorkerApi = {
     readonly getProject: (projectId: string) => Promise<Project>
     readonly updateProject: (input: UpdateProjectInput) => Promise<Project>
     readonly deleteProject: (input: DeleteProjectInput) => Promise<DeleteResult>
+    readonly pickLocalDirectory: () => Promise<string | null>
+    readonly validateLocalDirectory: (projectId: string) => Promise<ProjectDirectoryCheck>
+    readonly initializeLocalDirectory: (projectId: string) => Promise<ProjectDirectoryCheck>
+    readonly openLocalDirectory: (projectId: string) => Promise<ProjectLocalDirectoryActionResult>
+    readonly exportProjectManifest: (projectId: string) => Promise<ProjectManifestExport>
     readonly listProjectModules: (projectId: string) => Promise<readonly ProjectModule[]>
     readonly getProjectModule: (
       projectId: string,

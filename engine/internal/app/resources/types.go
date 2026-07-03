@@ -201,34 +201,116 @@ type SaveMCPServerInput struct {
 }
 
 type Project struct {
-	ProjectID             string   `json:"projectId"`
-	Title                 string   `json:"title"`
-	Description           string   `json:"description"`
-	Status                string   `json:"status"`
-	DefaultModelProfileID string   `json:"defaultModelProfileId"`
-	EnabledAgents         []string `json:"enabledAgents"`
-	EnabledSkills         []string `json:"enabledSkills"`
-	EnabledTools          []string `json:"enabledTools"`
-	EnabledMCPServers     []string `json:"enabledMcpServers"`
-	CreatedAt             string   `json:"createdAt"`
-	UpdatedAt             string   `json:"updatedAt"`
+	ProjectID                   string                         `json:"projectId"`
+	Title                       string                         `json:"title"`
+	Description                 string                         `json:"description"`
+	Status                      string                         `json:"status"`
+	LocalRootPath               *string                        `json:"localRootPath"`
+	LocalDirectoryStatus        string                         `json:"localDirectoryStatus"`
+	LocalDirectoryLastCheckedAt *string                        `json:"localDirectoryLastCheckedAt"`
+	DefaultModelProfileID       string                         `json:"defaultModelProfileId"`
+	DefaultRouteProfileID       *string                        `json:"defaultRouteProfileId"`
+	EnabledAgents               []string                       `json:"enabledAgents"`
+	EnabledSkills               []string                       `json:"enabledSkills"`
+	EnabledTools                []string                       `json:"enabledTools"`
+	EnabledMCPServers           []string                       `json:"enabledMcpServers"`
+	ModuleConfigs               map[string]ProjectModuleConfig `json:"moduleConfigs"`
+	MemoryConfig                ProjectMemoryConfig            `json:"memoryConfig"`
+	RunPolicy                   ProjectRunPolicy               `json:"runPolicy"`
+	SecurityPolicy              ProjectSecurityPolicy          `json:"securityPolicy"`
+	CreatedAt                   string                         `json:"createdAt"`
+	UpdatedAt                   string                         `json:"updatedAt"`
 }
 
 type CreateProjectInput struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
+	Title         string  `json:"title"`
+	Description   string  `json:"description"`
+	LocalRootPath *string `json:"localRootPath"`
 }
 
 type UpdateProjectInput struct {
-	ProjectID             string    `json:"projectId"`
-	Title                 *string   `json:"title"`
-	Description           *string   `json:"description"`
-	Status                *string   `json:"status"`
-	DefaultModelProfileID *string   `json:"defaultModelProfileId"`
-	EnabledAgents         *[]string `json:"enabledAgents"`
-	EnabledSkills         *[]string `json:"enabledSkills"`
-	EnabledTools          *[]string `json:"enabledTools"`
-	EnabledMCPServers     *[]string `json:"enabledMcpServers"`
+	ProjectID             string                          `json:"projectId"`
+	Title                 *string                         `json:"title"`
+	Description           *string                         `json:"description"`
+	Status                *string                         `json:"status"`
+	LocalRootPath         *string                         `json:"localRootPath"`
+	DefaultModelProfileID *string                         `json:"defaultModelProfileId"`
+	DefaultRouteProfileID *string                         `json:"defaultRouteProfileId"`
+	EnabledAgents         *[]string                       `json:"enabledAgents"`
+	EnabledSkills         *[]string                       `json:"enabledSkills"`
+	EnabledTools          *[]string                       `json:"enabledTools"`
+	EnabledMCPServers     *[]string                       `json:"enabledMcpServers"`
+	ModuleConfigs         *map[string]ProjectModuleConfig `json:"moduleConfigs"`
+	MemoryConfig          *ProjectMemoryConfig            `json:"memoryConfig"`
+	RunPolicy             *ProjectRunPolicy               `json:"runPolicy"`
+	SecurityPolicy        *ProjectSecurityPolicy          `json:"securityPolicy"`
+}
+
+type ProjectModuleConfig struct {
+	Enabled             bool           `json:"enabled"`
+	DefaultAgentIDs     []string       `json:"defaultAgentIds"`
+	EnabledSkillIDs     []string       `json:"enabledSkillIds"`
+	EnabledToolIDs      []string       `json:"enabledToolIds"`
+	EnabledMCPServerIDs []string       `json:"enabledMcpServerIds"`
+	OutputDir           string         `json:"outputDir"`
+	InputSchema         map[string]any `json:"inputSchema"`
+	Parameters          map[string]any `json:"parameters"`
+}
+
+type ProjectMemoryConfig struct {
+	ProjectMemoryEnabled  bool `json:"projectMemoryEnabled"`
+	ArtifactIndexEnabled  bool `json:"artifactIndexEnabled"`
+	LocalFileIndexEnabled bool `json:"localFileIndexEnabled"`
+	MaxContextTokens      int  `json:"maxContextTokens"`
+}
+
+type ProjectRunPolicy struct {
+	PlannerMode                     string  `json:"plannerMode"`
+	ExecutorMode                    string  `json:"executorMode"`
+	MaxRunCostUSD                   float64 `json:"maxRunCostUsd"`
+	MaxRunMinutes                   int     `json:"maxRunMinutes"`
+	RequireApprovalForHighRiskTools bool    `json:"requireApprovalForHighRiskTools"`
+}
+
+type ProjectSecurityPolicy struct {
+	FileAccessScope     string `json:"fileAccessScope"`
+	AllowWriteArtifacts bool   `json:"allowWriteArtifacts"`
+	AllowWriteSource    bool   `json:"allowWriteSource"`
+	AllowShellExecution bool   `json:"allowShellExecution"`
+	AllowNetworkTools   bool   `json:"allowNetworkTools"`
+}
+
+type ProjectDirectoryEntryCheck struct {
+	Path   string `json:"path"`
+	Exists bool   `json:"exists"`
+}
+
+type ProjectDirectoryCheck struct {
+	ProjectID              string                       `json:"projectId"`
+	LocalRootPath          *string                      `json:"localRootPath"`
+	Status                 string                       `json:"status"`
+	LastCheckedAt          string                       `json:"lastCheckedAt"`
+	Exists                 bool                         `json:"exists"`
+	Readable               bool                         `json:"readable"`
+	Writable               bool                         `json:"writable"`
+	DreamworkerInitialized bool                         `json:"dreamworkerInitialized"`
+	RequiredDirectories    []ProjectDirectoryEntryCheck `json:"requiredDirectories"`
+	Message                string                       `json:"message"`
+}
+
+type ProjectLocalDirectoryActionResult struct {
+	OK            bool                   `json:"ok"`
+	ProjectID     string                 `json:"projectId"`
+	LocalRootPath *string                `json:"localRootPath"`
+	Message       string                 `json:"message"`
+	Check         *ProjectDirectoryCheck `json:"check,omitempty"`
+}
+
+type ProjectManifestExport struct {
+	ProjectID     string         `json:"projectId"`
+	LocalRootPath *string        `json:"localRootPath"`
+	ManifestPath  *string        `json:"manifestPath"`
+	Manifest      map[string]any `json:"manifest"`
 }
 
 type ProjectModule struct {

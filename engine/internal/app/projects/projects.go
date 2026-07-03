@@ -12,6 +12,9 @@ var projectModuleOrder = map[string]int{
 func (s *Store) ListProjects() []Project {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
+	for projectID, project := range s.Projects {
+		s.Projects[projectID] = normalizeProject(project)
+	}
 	return sortedValues(s.Projects, func(item Project) string { return item.Title })
 }
 
@@ -21,7 +24,11 @@ func (s *Store) CreateProject(input CreateProjectInput) (Project, *AppError) {
 	}
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
-	return s.createProjectLocked(input, s.Now()), nil
+	project := s.createProjectLocked(input, s.Now())
+	if appErr := s.PersistWorkspaceSnapshotLocked(); appErr != nil {
+		return Project{}, appErr
+	}
+	return project, nil
 }
 
 func (s *Store) GetProject(projectID string) (Project, *AppError) {
@@ -34,6 +41,8 @@ func (s *Store) GetProject(projectID string) (Project, *AppError) {
 	if !ok {
 		return Project{}, NotFound("PROJECT_NOT_FOUND", "项目不存在。", "请刷新项目列表。")
 	}
+	project = normalizeProject(project)
+	s.Projects[projectID] = project
 	return project, nil
 }
 
@@ -56,8 +65,31 @@ func (s *Store) UpdateProject(input UpdateProjectInput) (Project, *AppError) {
 	if input.Status != nil {
 		project.Status = *input.Status
 	}
+	if input.LocalRootPath != nil {
+		previousPath := optionalPathValue(project.LocalRootPath)
+		cleaned := strings.TrimSpace(*input.LocalRootPath)
+		if cleaned == "" {
+			project.LocalRootPath = nil
+			project.LocalDirectoryStatus = "not_set"
+			project.LocalDirectoryLastCheckedAt = nil
+		} else {
+			project.LocalRootPath = &cleaned
+			if previousPath != cleaned || project.LocalDirectoryStatus == "not_set" || project.LocalDirectoryStatus == "" {
+				project.LocalDirectoryStatus = "invalid"
+				project.LocalDirectoryLastCheckedAt = nil
+			}
+		}
+	}
 	if input.DefaultModelProfileID != nil {
 		project.DefaultModelProfileID = *input.DefaultModelProfileID
+	}
+	if input.DefaultRouteProfileID != nil {
+		cleaned := strings.TrimSpace(*input.DefaultRouteProfileID)
+		if cleaned == "" {
+			project.DefaultRouteProfileID = nil
+		} else {
+			project.DefaultRouteProfileID = &cleaned
+		}
 	}
 	if input.EnabledAgents != nil {
 		project.EnabledAgents = append([]string{}, *input.EnabledAgents...)
@@ -71,8 +103,24 @@ func (s *Store) UpdateProject(input UpdateProjectInput) (Project, *AppError) {
 	if input.EnabledMCPServers != nil {
 		project.EnabledMCPServers = append([]string{}, *input.EnabledMCPServers...)
 	}
+	if input.ModuleConfigs != nil {
+		project.ModuleConfigs = cloneModuleConfigs(*input.ModuleConfigs)
+	}
+	if input.MemoryConfig != nil {
+		project.MemoryConfig = *input.MemoryConfig
+	}
+	if input.RunPolicy != nil {
+		project.RunPolicy = *input.RunPolicy
+	}
+	if input.SecurityPolicy != nil {
+		project.SecurityPolicy = *input.SecurityPolicy
+	}
 	project.UpdatedAt = s.Now()
+	project = normalizeProject(project)
 	s.Projects[input.ProjectID] = project
+	if appErr := s.PersistWorkspaceSnapshotLocked(); appErr != nil {
+		return Project{}, appErr
+	}
 	return project, nil
 }
 
@@ -94,6 +142,9 @@ func (s *Store) DeleteProject(projectID string) (DeleteResult, *AppError) {
 			session.UpdatedAt = now
 			s.Sessions[sessionID] = session
 		}
+	}
+	if appErr := s.PersistWorkspaceSnapshotLocked(); appErr != nil {
+		return DeleteResult{}, appErr
 	}
 	return DeleteResult{OK: true, DeletedID: projectID}, nil
 }
@@ -146,6 +197,9 @@ func (s *Store) UpdateProjectModuleConfig(input UpdateModuleConfigInput) (Projec
 	}
 	module.Config = cloneAnyMap(input.Config)
 	s.Modules[input.ProjectID][input.ModuleID] = module
+	if appErr := s.PersistWorkspaceSnapshotLocked(); appErr != nil {
+		return ProjectModule{}, appErr
+	}
 	return module, nil
 }
 
@@ -159,15 +213,43 @@ func (s *Store) createProjectLocked(input CreateProjectInput, timestamp string) 
 		Title:                 input.Title,
 		Description:           input.Description,
 		Status:                "active",
+		LocalRootPath:         cleanOptionalPath(input.LocalRootPath),
+		LocalDirectoryStatus:  "not_set",
 		DefaultModelProfileID: "profile_fast",
 		EnabledAgents:         []string{"agent_general_assistant", "agent_opportunity_scout", "agent_product_designer", "agent_system_architect", "agent_sales_strategist"},
 		EnabledSkills:         []string{"skill_opportunity_scan", "skill_competitor_map", "skill_prd_draft", "skill_blueprint", "skill_launch_plan"},
 		EnabledTools:          []string{"tool_model_generate_stub", "tool_artifact_write", "tool_web_search_stub", "tool_human_input"},
 		EnabledMCPServers:     []string{},
+		ModuleConfigs:         defaultProjectModuleConfigs(),
+		MemoryConfig:          defaultProjectMemoryConfig(),
+		RunPolicy:             defaultProjectRunPolicy(),
+		SecurityPolicy:        defaultProjectSecurityPolicy(),
 		CreatedAt:             timestamp,
 		UpdatedAt:             timestamp,
 	}
+	if project.LocalRootPath != nil {
+		project.LocalDirectoryStatus = "invalid"
+	}
+	project = normalizeProject(project)
 	s.Projects[project.ProjectID] = project
 	s.Modules[project.ProjectID] = createProjectModules(project.ProjectID)
 	return project
+}
+
+func cleanOptionalPath(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	cleaned := strings.TrimSpace(*value)
+	if cleaned == "" {
+		return nil
+	}
+	return &cleaned
+}
+
+func optionalPathValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
 }

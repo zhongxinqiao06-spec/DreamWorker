@@ -75,6 +75,13 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="desktop-shell">
+    <header class="app-title-bar" aria-label="窗口标题栏">
+      <div class="app-title-lockup">
+        <img src="/aios/brand-mark.png" alt="" />
+        <strong>DreamWorker AI 工作台</strong>
+        <span>AI OS 2.0</span>
+      </div>
+    </header>
     <AppSidebar />
     <section class="main-stage">
       <WorkspaceTopBar />

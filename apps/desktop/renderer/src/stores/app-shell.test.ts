@@ -1,6 +1,6 @@
-import { createPinia, setActivePinia } from 'pinia'
+﻿import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DreamWorkerApi } from '../../../shared/dreamworker-api'
+import type { DreamWorkerApi, Project, ProjectDirectoryCheck } from '../../../shared/dreamworker-api'
 import {
   ALL_MODEL_ROUTE_SOURCE,
   isRoutedModelProvider,
@@ -8,6 +8,37 @@ import {
   routeSourceOptionsForModels,
   useAppShellStore
 } from './app-shell'
+import { createDefaultProjectModuleConfigs } from './project-draft'
+
+function projectWorkspaceDefaults() {
+  return {
+    localRootPath: null,
+    localDirectoryStatus: 'not_set' as const,
+    localDirectoryLastCheckedAt: null,
+    defaultRouteProfileId: null,
+    moduleConfigs: createDefaultProjectModuleConfigs(),
+    memoryConfig: {
+      projectMemoryEnabled: true,
+      artifactIndexEnabled: true,
+      localFileIndexEnabled: false,
+      maxContextTokens: 64000
+    },
+    runPolicy: {
+      plannerMode: 'plan_execute' as const,
+      executorMode: 'safe' as const,
+      maxRunCostUsd: 5,
+      maxRunMinutes: 30,
+      requireApprovalForHighRiskTools: true
+    },
+    securityPolicy: {
+      fileAccessScope: 'project_directory_only' as const,
+      allowWriteArtifacts: true,
+      allowWriteSource: false,
+      allowShellExecution: false,
+      allowNetworkTools: true
+    }
+  }
+}
 
 function createDreamWorkerApiStub(): DreamWorkerApi {
   return {
@@ -385,6 +416,7 @@ function createDreamWorkerApiStub(): DreamWorkerApi {
           title: 'AI 项目孵化器',
           description: '项目空间种子数据。',
           status: 'active',
+          ...projectWorkspaceDefaults(),
           defaultModelProfileId: 'profile_fast',
           enabledAgents: ['agent_general_assistant'],
           enabledSkills: ['skill_opportunity_scan'],
@@ -399,6 +431,7 @@ function createDreamWorkerApiStub(): DreamWorkerApi {
         title: '新的 AI 项目',
         description: '新项目。',
         status: 'active',
+        ...projectWorkspaceDefaults(),
         defaultModelProfileId: 'profile_fast',
         enabledAgents: [],
         enabledSkills: [],
@@ -407,9 +440,83 @@ function createDreamWorkerApiStub(): DreamWorkerApi {
         createdAt: '2026-07-01T00:00:00Z',
         updatedAt: '2026-07-01T00:00:00Z'
       }),
-      getProject: vi.fn(),
-      updateProject: vi.fn(),
+      getProject: vi.fn().mockResolvedValue({
+        projectId: 'project_001',
+        title: 'AI 项目孵化器',
+        description: '项目空间种子数据。',
+        status: 'active',
+        ...projectWorkspaceDefaults(),
+        localRootPath: 'C:\\DreamWorkerProjects\\project_001',
+        localDirectoryStatus: 'valid',
+        localDirectoryLastCheckedAt: '2026-07-01T00:00:00Z',
+        defaultModelProfileId: 'profile_fast',
+        enabledAgents: ['agent_general_assistant'],
+        enabledSkills: ['skill_opportunity_scan'],
+        enabledTools: ['tool_model_generate_stub'],
+        enabledMcpServers: [],
+        createdAt: '2026-07-01T00:00:00Z',
+        updatedAt: '2026-07-01T00:00:00Z'
+      }),
+      updateProject: vi.fn().mockImplementation(async (input) => ({
+        projectId: input.projectId,
+        title: input.title ?? 'AI 项目孵化器',
+        description: input.description ?? '项目空间种子数据。',
+        status: input.status ?? 'active',
+        ...projectWorkspaceDefaults(),
+        localRootPath: input.localRootPath ?? null,
+        localDirectoryStatus: input.localRootPath ? 'invalid' : 'not_set',
+        localDirectoryLastCheckedAt: null,
+        defaultModelProfileId: input.defaultModelProfileId ?? 'profile_fast',
+        defaultRouteProfileId: input.defaultRouteProfileId ?? null,
+        enabledAgents: input.enabledAgents ?? ['agent_general_assistant'],
+        enabledSkills: input.enabledSkills ?? ['skill_opportunity_scan'],
+        enabledTools: input.enabledTools ?? ['tool_model_generate_stub'],
+        enabledMcpServers: input.enabledMcpServers ?? [],
+        moduleConfigs: input.moduleConfigs ?? createDefaultProjectModuleConfigs(),
+        memoryConfig: input.memoryConfig ?? projectWorkspaceDefaults().memoryConfig,
+        runPolicy: input.runPolicy ?? projectWorkspaceDefaults().runPolicy,
+        securityPolicy: input.securityPolicy ?? projectWorkspaceDefaults().securityPolicy,
+        createdAt: '2026-07-01T00:00:00Z',
+        updatedAt: '2026-07-01T00:00:00Z'
+      })),
       deleteProject: vi.fn().mockResolvedValue({ ok: true, deletedId: 'project_001' }),
+      pickLocalDirectory: vi.fn().mockResolvedValue('C:\\DreamWorkerProjects\\project_001'),
+      validateLocalDirectory: vi.fn().mockResolvedValue({
+        projectId: 'project_001',
+        localRootPath: 'C:\\DreamWorkerProjects\\project_001',
+        status: 'valid',
+        lastCheckedAt: '2026-07-01T00:00:00Z',
+        exists: true,
+        readable: true,
+        writable: true,
+        dreamworkerInitialized: true,
+        requiredDirectories: [],
+        message: '本地目录可用，项目结构完整。'
+      }),
+      initializeLocalDirectory: vi.fn().mockResolvedValue({
+        projectId: 'project_001',
+        localRootPath: 'C:\\DreamWorkerProjects\\project_001',
+        status: 'valid',
+        lastCheckedAt: '2026-07-01T00:00:00Z',
+        exists: true,
+        readable: true,
+        writable: true,
+        dreamworkerInitialized: true,
+        requiredDirectories: [],
+        message: '本地目录可用，项目结构完整。'
+      }),
+      openLocalDirectory: vi.fn().mockResolvedValue({
+        ok: true,
+        projectId: 'project_001',
+        localRootPath: 'C:\\DreamWorkerProjects\\project_001',
+        message: '已打开项目本地目录。'
+      }),
+      exportProjectManifest: vi.fn().mockResolvedValue({
+        projectId: 'project_001',
+        localRootPath: 'C:\\DreamWorkerProjects\\project_001',
+        manifestPath: 'C:\\DreamWorkerProjects\\project_001\\.dreamworker\\manifest.json',
+        manifest: {}
+      }),
       listProjectModules: vi.fn().mockResolvedValue([
         {
           projectId: 'project_001',
@@ -703,6 +810,185 @@ describe('app shell workspace state', () => {
     expect(api.chat.updateSession).toHaveBeenLastCalledWith(
       expect.objectContaining({ projectId: null })
     )
+  })
+
+  it('saves and validates the active project local directory through typed APIs', async () => {
+    const api = createDreamWorkerApiStub()
+    stubDreamWorkerApi(api)
+    const store = useAppShellStore()
+    await store.loadWorkspace()
+
+    await store.chooseProjectLocalDirectory()
+
+    expect(api.projects.pickLocalDirectory).toHaveBeenCalled()
+    expect(api.projects.updateProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 'project_001',
+        localRootPath: 'C:\\DreamWorkerProjects\\project_001'
+      })
+    )
+    expect(api.projects.validateLocalDirectory).toHaveBeenCalledWith('project_001')
+    expect(store.activeProjectDirectoryCheck?.status).toBe('valid')
+    expect(store.projectDraft.localRootPath).toBe('C:\\DreamWorkerProjects\\project_001')
+  })
+
+  it('saves a manually typed local directory before initializing it', async () => {
+    const api = createDreamWorkerApiStub()
+    let project: Project = {
+      projectId: 'project_001',
+      title: 'AI 项目孵化器',
+      description: '项目空间种子数据。',
+      status: 'active',
+      ...projectWorkspaceDefaults(),
+      defaultModelProfileId: 'profile_fast',
+      enabledAgents: ['agent_general_assistant'],
+      enabledSkills: ['skill_opportunity_scan'],
+      enabledTools: ['tool_model_generate_stub'],
+      enabledMcpServers: [],
+      createdAt: '2026-07-01T00:00:00Z',
+      updatedAt: '2026-07-01T00:00:00Z'
+    }
+    const validCheck = (path: string): ProjectDirectoryCheck => ({
+      projectId: 'project_001',
+      localRootPath: path,
+      status: 'valid',
+      lastCheckedAt: '2026-07-01T00:10:00Z',
+      exists: true,
+      readable: true,
+      writable: true,
+      dreamworkerInitialized: true,
+      requiredDirectories: [],
+      message: '本地目录可用，项目结构完整。'
+    })
+    Object.assign(api.projects, {
+      listProjects: vi.fn().mockResolvedValue([project]),
+      getProject: vi.fn().mockImplementation(async () => project),
+      updateProject: vi.fn().mockImplementation(async (input) => {
+        project = {
+          ...project,
+          ...input,
+          localRootPath: input.localRootPath ?? null,
+          localDirectoryStatus: input.localRootPath ? 'invalid' : 'not_set',
+          localDirectoryLastCheckedAt: null,
+          updatedAt: '2026-07-01T00:05:00Z'
+        }
+        return project
+      }),
+      initializeLocalDirectory: vi.fn().mockImplementation(async () => {
+        const check = validCheck(project.localRootPath ?? '')
+        project = {
+          ...project,
+          localDirectoryStatus: check.status,
+          localDirectoryLastCheckedAt: check.lastCheckedAt
+        }
+        return check
+      })
+    })
+    stubDreamWorkerApi(api)
+    const store = useAppShellStore()
+    await store.loadWorkspace()
+
+    store.projectDraft.localRootPath = 'C:\\ManualDreamWorkerProject'
+    await store.initializeActiveProjectDirectory()
+
+    expect(api.projects.updateProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 'project_001',
+        localRootPath: 'C:\\ManualDreamWorkerProject'
+      })
+    )
+    expect(api.projects.initializeLocalDirectory).toHaveBeenCalledWith('project_001')
+    expect(vi.mocked(api.projects.updateProject).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(api.projects.initializeLocalDirectory).mock.invocationCallOrder[0] ??
+        Number.MAX_SAFE_INTEGER
+    )
+    expect(store.activeProject?.localDirectoryStatus).toBe('valid')
+    expect(store.activeProjectDirectoryCheck?.localRootPath).toBe('C:\\ManualDreamWorkerProject')
+    expect(store.projectDraft.localRootPath).toBe('C:\\ManualDreamWorkerProject')
+  })
+
+  it('clears stale directory checks when a saved local path changes', async () => {
+    const api = createDreamWorkerApiStub()
+    let project: Project = {
+      projectId: 'project_001',
+      title: 'AI 项目孵化器',
+      description: '项目空间种子数据。',
+      status: 'active',
+      ...projectWorkspaceDefaults(),
+      localRootPath: 'C:\\OldDreamWorkerProject',
+      localDirectoryStatus: 'valid',
+      localDirectoryLastCheckedAt: '2026-07-01T00:00:00Z',
+      defaultModelProfileId: 'profile_fast',
+      enabledAgents: ['agent_general_assistant'],
+      enabledSkills: ['skill_opportunity_scan'],
+      enabledTools: ['tool_model_generate_stub'],
+      enabledMcpServers: [],
+      createdAt: '2026-07-01T00:00:00Z',
+      updatedAt: '2026-07-01T00:00:00Z'
+    }
+    Object.assign(api.projects, {
+      listProjects: vi.fn().mockResolvedValue([project]),
+      getProject: vi.fn().mockImplementation(async () => project),
+      updateProject: vi.fn().mockImplementation(async (input) => {
+        project = {
+          ...project,
+          ...input,
+          localRootPath: input.localRootPath ?? null,
+          localDirectoryStatus: input.localRootPath ? 'invalid' : 'not_set',
+          localDirectoryLastCheckedAt: null,
+          updatedAt: '2026-07-01T00:05:00Z'
+        }
+        return project
+      })
+    })
+    stubDreamWorkerApi(api)
+    const store = useAppShellStore()
+    await store.loadWorkspace()
+    store.activeProjectDirectoryCheck = {
+      projectId: 'project_001',
+      localRootPath: 'C:\\OldDreamWorkerProject',
+      status: 'valid',
+      lastCheckedAt: '2026-07-01T00:00:00Z',
+      exists: true,
+      readable: true,
+      writable: true,
+      dreamworkerInitialized: true,
+      requiredDirectories: [],
+      message: '旧目录可用。'
+    }
+
+    store.projectDraft.localRootPath = 'C:\\NewDreamWorkerProject'
+    await store.saveActiveProject()
+
+    expect(api.projects.updateProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 'project_001',
+        localRootPath: 'C:\\NewDreamWorkerProject'
+      })
+    )
+    expect(store.activeProjectDirectoryCheck).toBeNull()
+    expect(store.activeProject?.localDirectoryStatus).toBe('invalid')
+    expect(store.activeProject?.localDirectoryLastCheckedAt).toBeNull()
+  })
+
+  it('opens and exports the active project directory after saving dirty draft changes', async () => {
+    const api = createDreamWorkerApiStub()
+    stubDreamWorkerApi(api)
+    const store = useAppShellStore()
+    await store.loadWorkspace()
+
+    store.projectDraft.localRootPath = 'C:\\ExportableDreamWorkerProject'
+    await store.openActiveProjectDirectory()
+    await store.exportActiveProjectManifest()
+
+    expect(api.projects.updateProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 'project_001',
+        localRootPath: 'C:\\ExportableDreamWorkerProject'
+      })
+    )
+    expect(api.projects.openLocalDirectory).toHaveBeenCalledWith('project_001')
+    expect(api.projects.exportProjectManifest).toHaveBeenCalledWith('project_001')
   })
 
   it('deletes the active project through the typed API', async () => {

@@ -35,6 +35,7 @@ type Store struct {
 
 func NewStore(options ...StoreOption) *Store {
 	state := resources.NewStore(options...)
+	snapshotLoaded := state.SnapshotLoaded
 	extensionOptions := []extensions.Option{}
 	if state.ConfigDir != "" {
 		extensionOptions = append(extensionOptions,
@@ -52,8 +53,10 @@ func NewStore(options ...StoreOption) *Store {
 		messages:         state.Messages,
 	}
 	store.syncExtensionProviders()
-	store.projectStore.SeedDefaults(state.Now())
-	store.seedDefaultChat()
+	if !snapshotLoaded {
+		store.projectStore.SeedDefaults(state.Now())
+		store.seedDefaultChat()
+	}
 	return store
 }
 

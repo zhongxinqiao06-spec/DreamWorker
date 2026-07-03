@@ -103,6 +103,15 @@ func RegisterWorkspaceRoutes(mux *http.ServeMux, token string, store *workspace.
 	registerPostID(mux, handler, "/projects/delete", func(request workspace.IDRequest) (workspace.DeleteResult, *workspace.AppError) {
 		return store.DeleteProject(request.ProjectID)
 	})
+	registerPostID(mux, handler, "/projects/local-directory/validate", func(request workspace.IDRequest) (workspace.ProjectDirectoryCheck, *workspace.AppError) {
+		return store.ValidateLocalDirectory(request.ProjectID)
+	})
+	registerPostID(mux, handler, "/projects/local-directory/initialize", func(request workspace.IDRequest) (workspace.ProjectDirectoryCheck, *workspace.AppError) {
+		return store.InitializeLocalDirectory(request.ProjectID)
+	})
+	registerPostID(mux, handler, "/projects/export-manifest", func(request workspace.IDRequest) (workspace.ProjectManifestExport, *workspace.AppError) {
+		return store.ExportProjectManifest(request.ProjectID)
+	})
 	registerPostID(mux, handler, "/projects/modules", func(request workspace.IDRequest) ([]workspace.ProjectModule, *workspace.AppError) {
 		return store.ListProjectModules(request.ProjectID)
 	})

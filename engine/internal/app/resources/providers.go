@@ -61,6 +61,9 @@ func (s *Store) SaveProvider(input SaveModelProviderInput) (SafeModelProvider, *
 	if appErr := s.persistProvidersLocked(); appErr != nil {
 		return SafeModelProvider{}, appErr
 	}
+	if appErr := s.persistWorkspaceLocked(); appErr != nil {
+		return SafeModelProvider{}, appErr
+	}
 	return record.safe(), nil
 }
 
@@ -72,6 +75,9 @@ func (s *Store) DeleteProvider(providerID string) (DeleteResult, *AppError) {
 	defer s.Mu.Unlock()
 	delete(s.Providers, providerID)
 	if appErr := s.persistProvidersLocked(); appErr != nil {
+		return DeleteResult{}, appErr
+	}
+	if appErr := s.persistWorkspaceLocked(); appErr != nil {
 		return DeleteResult{}, appErr
 	}
 	return DeleteResult{OK: true, DeletedID: providerID}, nil
@@ -128,6 +134,9 @@ func (s *Store) TestProvider(providerID string) (TestResult, *AppError) {
 	s.Providers[providerID] = provider
 	s.Mu.Unlock()
 	if appErr := s.PersistProviders(); appErr != nil {
+		return TestResult{}, appErr
+	}
+	if appErr := s.PersistWorkspaceSnapshot(); appErr != nil {
 		return TestResult{}, appErr
 	}
 	return TestResult{
@@ -194,6 +203,9 @@ func (s *Store) RefreshProviderModels(providerID string) (SafeModelProvider, *Ap
 	s.Providers[providerID] = provider
 	s.Mu.Unlock()
 	if appErr := s.PersistProviders(); appErr != nil {
+		return SafeModelProvider{}, appErr
+	}
+	if appErr := s.PersistWorkspaceSnapshot(); appErr != nil {
 		return SafeModelProvider{}, appErr
 	}
 	return provider.safe(), nil

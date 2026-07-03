@@ -16,10 +16,17 @@ func NewStore(state *resources.Store) *Store {
 }
 
 type Project = resources.Project
+type ProjectModuleConfig = resources.ProjectModuleConfig
+type ProjectMemoryConfig = resources.ProjectMemoryConfig
+type ProjectRunPolicy = resources.ProjectRunPolicy
+type ProjectSecurityPolicy = resources.ProjectSecurityPolicy
 type ProjectModule = resources.ProjectModule
 type ProjectSubmodule = resources.ProjectSubmodule
 type CreateProjectInput = resources.CreateProjectInput
 type UpdateProjectInput = resources.UpdateProjectInput
+type ProjectDirectoryEntryCheck = resources.ProjectDirectoryEntryCheck
+type ProjectDirectoryCheck = resources.ProjectDirectoryCheck
+type ProjectManifestExport = resources.ProjectManifestExport
 type ModuleRequest = resources.ModuleRequest
 type UpdateModuleConfigInput = resources.UpdateModuleConfigInput
 type DeleteResult = resources.DeleteResult

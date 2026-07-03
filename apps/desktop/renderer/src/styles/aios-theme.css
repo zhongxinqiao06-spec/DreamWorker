@@ -63,6 +63,7 @@ select:focus-visible {
   position: relative;
   isolation: isolate;
   grid-template-columns: 224px minmax(0, 1fr);
+  grid-template-rows: 40px minmax(0, 1fr);
   background:
     url('/aios/glass-orbit-hero.png') top right / min(34vw, 430px) auto no-repeat,
     linear-gradient(
@@ -83,6 +84,94 @@ select:focus-visible {
     linear-gradient(315deg, rgba(20, 184, 166, 0.08), transparent 34%);
   content: '';
   pointer-events: none;
+}
+
+.app-title-bar {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  grid-row: 1;
+  grid-column: 1 / -1;
+  align-items: center;
+  min-width: 0;
+  height: 40px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.74)),
+    linear-gradient(135deg, rgba(237, 231, 255, 0.74), rgba(240, 253, 250, 0.42));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    0 8px 26px rgba(100, 116, 139, 0.1);
+  padding: 0 150px 0 12px;
+  user-select: none;
+  -webkit-app-region: drag;
+  backdrop-filter: var(--glass-blur);
+}
+
+.app-title-bar::before {
+  position: absolute;
+  top: 0;
+  right: 150px;
+  left: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    rgba(124, 58, 237, 0.54),
+    rgba(37, 99, 235, 0.22),
+    transparent
+  );
+  content: '';
+  pointer-events: none;
+}
+
+.app-title-lockup {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  color: var(--text);
+}
+
+.app-title-lockup img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 10px rgba(124, 58, 237, 0.16));
+}
+
+.app-title-lockup strong {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-title-lockup span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  border: 1px solid rgba(124, 58, 237, 0.16);
+  border-radius: 999px;
+  background: rgba(237, 231, 255, 0.64);
+  padding: 0 7px;
+  color: var(--purple);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.app-sidebar,
+.main-stage {
+  grid-row: 2;
+}
+
+.app-sidebar {
+  grid-column: 1;
+}
+
+.main-stage {
+  grid-column: 2;
 }
 
 .app-sidebar,
@@ -106,6 +195,15 @@ select:focus-visible {
 .thinking-detail-body section,
 .module-columns article,
 .resource-selector-grid section,
+.project-metrics-strip article,
+.directory-tree span,
+.resource-pack-row button,
+.project-resource-card,
+.selected-resource-panel,
+.selected-resource-list button,
+.directory-path-row button,
+.resource-type-rail button,
+.module-mcp-row button,
 .provider-health-grid div,
 .extension-log-panel,
 .extension-log-list article,
@@ -207,6 +305,12 @@ select:focus-visible {
 .resource-card:hover,
 .module-card:hover,
 .submodule-card.active,
+.resource-type-rail button.active,
+.module-mcp-row button.active,
+.project-resource-card.selected,
+.resource-pack-row button:hover,
+.project-resource-card:hover,
+.selected-resource-list button:hover,
 .provider-row.active,
 .provider-row:hover,
 .create-row {
@@ -420,6 +524,8 @@ select:focus-visible {
 .provider-status-line span,
 .submodule-meta span,
 .tag-list span,
+.project-resource-card span,
+.selected-resource-list button span,
 .message-runtime-footer span,
 .detail-chip-list span,
 .provider-status-strip span,
@@ -438,6 +544,8 @@ select:focus-visible {
 .chat-message span,
 .chat-message small,
 .resource-card span,
+.project-resource-card span,
+.selected-resource-list button span,
 .module-card span,
 .module-card small,
 .runtime-steps strong,
@@ -644,6 +752,7 @@ input[type='checkbox']:disabled:checked {
 .chat-main-header,
 .chat-binding-bar,
 .chat-composer,
+.project-tabs,
 .project-action-bar {
   border-color: var(--line);
 }
@@ -687,6 +796,8 @@ input[type='checkbox']:disabled:checked {
 .chat-thread,
 .resource-list,
 .project-config-scroll,
+.resource-card-list,
+.selected-resource-list,
 .provider-list,
 .provider-model-list,
 .extension-log-list {

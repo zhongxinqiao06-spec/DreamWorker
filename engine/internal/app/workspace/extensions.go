@@ -161,6 +161,9 @@ func (s *Store) SaveProvider(input SaveModelProviderInput) (SafeModelProvider, *
 		if appErr := s.Store.PersistProviders(); appErr != nil {
 			return SafeModelProvider{}, appErr
 		}
+		if appErr := s.Store.PersistWorkspaceSnapshot(); appErr != nil {
+			return SafeModelProvider{}, appErr
+		}
 		provider, ok := s.providerByID(extensions.NineRouterProviderID)
 		if !ok {
 			return SafeModelProvider{}, NotFound("PROVIDER_NOT_FOUND", "未找到 9Router 服务商。", "刷新资源中心后重试。")
@@ -180,6 +183,11 @@ func (s *Store) DeleteProvider(providerID string) (DeleteResult, *AppError) {
 func (s *Store) TestProvider(providerID string) (TestResult, *AppError) {
 	if providerID == extensions.NineRouterProviderID {
 		result, appErr := s.TestExtension(ExtensionIDRequest{ExtensionID: extensions.NineRouterExtensionID})
+		if appErr == nil {
+			if persistErr := s.Store.PersistWorkspaceSnapshot(); persistErr != nil {
+				appErr = persistErr
+			}
+		}
 		return TestResult{
 			OK:        result.OK,
 			TargetID:  providerID,
@@ -195,6 +203,9 @@ func (s *Store) RefreshProviderModels(providerID string) (SafeModelProvider, *Ap
 	if providerID == extensions.NineRouterProviderID {
 		_, appErr := s.RefreshExtensionModels(ExtensionIDRequest{ExtensionID: extensions.NineRouterExtensionID})
 		if appErr != nil {
+			return SafeModelProvider{}, appErr
+		}
+		if appErr := s.Store.PersistWorkspaceSnapshot(); appErr != nil {
 			return SafeModelProvider{}, appErr
 		}
 		provider, ok := s.providerByID(providerID)

@@ -19,6 +19,7 @@ import type {
   ModelProfile,
   ProviderCapability,
   Project,
+  ProjectDirectoryCheck,
   ProjectModule,
   RuntimePingResponse,
   SafeModelProvider,
@@ -89,6 +90,16 @@ type ResourceNotice = {
   tone: ResourceNoticeTone
   message: string
 }
+
+export type ProjectSettingsTabId =
+  | 'basic'
+  | 'directory'
+  | 'resources'
+  | 'modules'
+  | 'run-policy'
+  | 'security'
+
+export type ProjectResourceType = 'agents' | 'skills' | 'tools' | 'mcp'
 
 export type ProviderTemplateId =
   'deepseek' | 'siliconflow' | 'glm' | 'openai_compatible' | 'anthropic' | 'ollama'
@@ -697,6 +708,10 @@ export const useAppShellStore = defineStore('app-shell', {
     resourceNotice: null as ResourceNotice | null,
     providerActionStatus: '',
     activeProjectId: '',
+    activeProjectSettingsTab: 'basic' as ProjectSettingsTabId,
+    projectResourceType: 'agents' as ProjectResourceType,
+    projectResourceSearch: '',
+    activeProjectDirectoryCheck: null as ProjectDirectoryCheck | null,
     activeChatSessionId: '',
     activeAgentId: 'agent_general_assistant',
     activeProviderId: 'provider_deepseek',
@@ -876,6 +891,12 @@ export const useAppShellStore = defineStore('app-shell', {
     },
     projectModuleSummary: (state): string =>
       state.projectModules.map((module) => `${module.displayName}:${module.status}`).join(' / '),
+    projectDraftDirty: (state): boolean => {
+      const activeProject =
+        state.projects.find((project) => project.projectId === state.activeProjectId) ??
+        state.projects[0]
+      return JSON.stringify(createProjectDraft(activeProject)) !== JSON.stringify(state.projectDraft)
+    },
     activeWorkspaceTitle: (state): string => {
       if (state.activePrimary === 'chat') {
         return '普通 Agent 聊天工作台'
@@ -1498,11 +1519,34 @@ export const useAppShellStore = defineStore('app-shell', {
     },
     async selectProject(projectId: string): Promise<void> {
       this.activeProjectId = projectId
+      this.activeProjectDirectoryCheck = null
       await this.loadProjectModules(projectId)
       this.syncProjectDraft()
     },
+    setProjectSettingsTab(tabId: ProjectSettingsTabId): void {
+      this.activeProjectSettingsTab = tabId
+    },
+    setProjectResourceType(type: ProjectResourceType): void {
+      this.projectResourceType = type
+    },
     syncProjectDraft(): void {
       this.projectDraft = createProjectDraft(this.activeProject)
+    },
+    async refreshActiveProject(): Promise<void> {
+      if (!this.activeProjectId) {
+        return
+      }
+      const project = await window.dreamworker.projects.getProject(this.activeProjectId)
+      if (
+        this.activeProjectDirectoryCheck &&
+        this.activeProjectDirectoryCheck.localRootPath !== project.localRootPath
+      ) {
+        this.activeProjectDirectoryCheck = null
+      }
+      this.projects = this.projects.map((item) =>
+        item.projectId === project.projectId ? project : item
+      )
+      this.syncProjectDraft()
     },
     async loadProjectModules(projectId: string): Promise<void> {
       if (!projectId) {
@@ -1546,14 +1590,81 @@ export const useAppShellStore = defineStore('app-shell', {
       if (!this.activeProjectId) {
         return
       }
+      const previousLocalRootPath = this.activeProject?.localRootPath ?? null
       const project = await window.dreamworker.projects.updateProject({
         projectId: this.activeProjectId,
         ...this.projectDraft
       })
+      if (previousLocalRootPath !== project.localRootPath) {
+        this.activeProjectDirectoryCheck = null
+      }
       this.projects = this.projects.map((item) =>
         item.projectId === project.projectId ? project : item
       )
       this.syncProjectDraft()
+      this.showResourceNotice('项目配置已保存')
+    },
+    async chooseProjectLocalDirectory(): Promise<void> {
+      if (!this.activeProjectId) {
+        return
+      }
+      const pickedPath = await window.dreamworker.projects.pickLocalDirectory()
+      if (!pickedPath) {
+        return
+      }
+      this.projectDraft.localRootPath = pickedPath
+      await this.saveActiveProject()
+      await this.validateActiveProjectDirectory()
+    },
+    async validateActiveProjectDirectory(): Promise<void> {
+      if (!this.activeProjectId) {
+        return
+      }
+      if (this.projectDraftDirty) {
+        await this.saveActiveProject()
+      }
+      const check = await window.dreamworker.projects.validateLocalDirectory(this.activeProjectId)
+      this.activeProjectDirectoryCheck = check
+      await this.refreshActiveProject()
+      this.showResourceNotice(check.message, check.status === 'valid' ? 'success' : 'info')
+    },
+    async initializeActiveProjectDirectory(): Promise<void> {
+      if (!this.activeProjectId) {
+        return
+      }
+      if (this.projectDraftDirty) {
+        await this.saveActiveProject()
+      }
+      const check = await window.dreamworker.projects.initializeLocalDirectory(this.activeProjectId)
+      this.activeProjectDirectoryCheck = check
+      await this.refreshActiveProject()
+      this.showResourceNotice(check.message, check.status === 'valid' ? 'success' : 'info')
+    },
+    async openActiveProjectDirectory(): Promise<void> {
+      if (!this.activeProjectId) {
+        return
+      }
+      if (this.projectDraftDirty) {
+        await this.saveActiveProject()
+      }
+      const result = await window.dreamworker.projects.openLocalDirectory(this.activeProjectId)
+      if (result.check) {
+        this.activeProjectDirectoryCheck = result.check
+      }
+      await this.refreshActiveProject()
+      this.showResourceNotice(result.message, result.ok ? 'success' : 'error')
+    },
+    async exportActiveProjectManifest(): Promise<void> {
+      if (!this.activeProjectId) {
+        return
+      }
+      if (this.projectDraftDirty) {
+        await this.saveActiveProject()
+      }
+      const result = await window.dreamworker.projects.exportProjectManifest(this.activeProjectId)
+      this.showResourceNotice(
+        result.manifestPath ? `项目 manifest 已导出：${result.manifestPath}` : '项目 manifest 已生成'
+      )
     },
     async deleteActiveProject(): Promise<void> {
       if (!this.activeProjectId) {

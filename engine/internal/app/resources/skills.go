@@ -48,6 +48,9 @@ func (s *Store) SaveSkill(input SkillConfig) (SkillConfig, *AppError) {
 	defer s.Mu.Unlock()
 	input = written
 	s.Skills[input.SkillID] = input
+	if appErr := s.persistWorkspaceLocked(); appErr != nil {
+		return SkillConfig{}, appErr
+	}
 	return input, nil
 }
 
@@ -58,6 +61,9 @@ func (s *Store) DeleteSkill(skillID string) (DeleteResult, *AppError) {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 	delete(s.Skills, skillID)
+	if appErr := s.persistWorkspaceLocked(); appErr != nil {
+		return DeleteResult{}, appErr
+	}
 	return DeleteResult{OK: true, DeletedID: skillID}, nil
 }
 

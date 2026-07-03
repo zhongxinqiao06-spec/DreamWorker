@@ -39,6 +39,9 @@ func (s *Store) CreateChatSession(input CreateChatSessionInput) (ChatSession, *A
 	}
 	s.Sessions[session.SessionID] = session
 	s.Messages[session.SessionID] = []ChatMessage{}
+	if appErr := s.PersistWorkspaceSnapshotLocked(); appErr != nil {
+		return ChatSession{}, appErr
+	}
 	return session, nil
 }
 
@@ -89,6 +92,9 @@ func (s *Store) UpdateChatSession(input UpdateChatSessionInput) (ChatSession, *A
 	session.ProjectID = input.ProjectID
 	session.UpdatedAt = s.Now()
 	s.Sessions[input.SessionID] = session
+	if appErr := s.PersistWorkspaceSnapshotLocked(); appErr != nil {
+		return ChatSession{}, appErr
+	}
 	return session, nil
 }
 
@@ -198,6 +204,10 @@ func (s *Store) StreamChatMessage(ctx context.Context, input SendChatMessageInpu
 	s.Sessions[session.SessionID] = session
 	contextPack, warning := s.buildChatContextLocked(session, assistantMessage.MessageID, agent, profile, provider, providerFallback)
 	toolCalls := s.buildChatToolCallsLocked(agent)
+	if appErr := s.PersistWorkspaceSnapshotLocked(); appErr != nil {
+		s.Mu.Unlock()
+		return nil, appErr
+	}
 	streamCtx, cancel := context.WithCancel(ctx)
 	s.Streams[streamID] = cancel
 	s.Mu.Unlock()
@@ -486,6 +496,7 @@ func (s *Store) completeStreamMessage(
 		provider.Status = "connected"
 	}
 	s.Providers[provider.ProviderID] = provider
+	_ = s.PersistWorkspaceSnapshotLocked()
 	steps := buildCompletedChatExecutionSteps(now, agent)
 	audit := ChatAuditSummary{
 		ContentHash:  contentHash(content),
@@ -539,6 +550,9 @@ func (s *Store) DeleteChatSession(sessionID string) (DeleteResult, *AppError) {
 	defer s.Mu.Unlock()
 	delete(s.Sessions, sessionID)
 	delete(s.Messages, sessionID)
+	if appErr := s.PersistWorkspaceSnapshotLocked(); appErr != nil {
+		return DeleteResult{}, appErr
+	}
 	return DeleteResult{OK: true, DeletedID: sessionID}, nil
 }
 

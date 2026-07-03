@@ -63,6 +63,9 @@ func (s *Store) SaveMCPServer(input SaveMCPServerInput) (MCPServerConfig, *AppEr
 	record.EnvKeys, record.MaskedSecrets = secretSummaries(record.Secrets)
 	record.HasSecrets = len(record.Secrets) > 0
 	s.Servers[record.ServerID] = record
+	if appErr := s.persistWorkspaceLocked(); appErr != nil {
+		return MCPServerConfig{}, appErr
+	}
 	return record.safe(), nil
 }
 
@@ -78,6 +81,9 @@ func (s *Store) DeleteMCPServer(serverID string) (DeleteResult, *AppError) {
 			delete(s.MCPTools, toolID)
 			delete(s.Tools, toolID)
 		}
+	}
+	if appErr := s.persistWorkspaceLocked(); appErr != nil {
+		return DeleteResult{}, appErr
 	}
 	return DeleteResult{OK: true, DeletedID: serverID}, nil
 }
@@ -161,6 +167,9 @@ func (s *Store) RefreshMCPTools(serverID string) ([]ToolConfig, *AppError) {
 		discovered = append(discovered, tool)
 	}
 	sort.Slice(discovered, func(i, j int) bool { return discovered[i].DisplayName < discovered[j].DisplayName })
+	if appErr := s.persistWorkspaceLocked(); appErr != nil {
+		return nil, appErr
+	}
 	return discovered, nil
 }
 

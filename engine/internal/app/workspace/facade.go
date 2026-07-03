@@ -27,6 +27,8 @@ type SaveMCPServerInput = resources.SaveMCPServerInput
 type Project = resources.Project
 type CreateProjectInput = resources.CreateProjectInput
 type UpdateProjectInput = resources.UpdateProjectInput
+type ProjectDirectoryCheck = resources.ProjectDirectoryCheck
+type ProjectManifestExport = resources.ProjectManifestExport
 type ProjectModule = resources.ProjectModule
 type ProjectSubmodule = resources.ProjectSubmodule
 type ModuleRequest = resources.ModuleRequest
@@ -117,6 +119,18 @@ func (s *Store) UpdateProject(input UpdateProjectInput) (Project, *AppError) {
 
 func (s *Store) DeleteProject(projectID string) (DeleteResult, *AppError) {
 	return s.projectStore.DeleteProject(projectID)
+}
+
+func (s *Store) ValidateLocalDirectory(projectID string) (ProjectDirectoryCheck, *AppError) {
+	return s.projectStore.ValidateLocalDirectory(projectID)
+}
+
+func (s *Store) InitializeLocalDirectory(projectID string) (ProjectDirectoryCheck, *AppError) {
+	return s.projectStore.InitializeLocalDirectory(projectID)
+}
+
+func (s *Store) ExportProjectManifest(projectID string) (ProjectManifestExport, *AppError) {
+	return s.projectStore.ExportProjectManifest(projectID)
 }
 
 func (s *Store) ListProjectModules(projectID string) ([]ProjectModule, *AppError) {

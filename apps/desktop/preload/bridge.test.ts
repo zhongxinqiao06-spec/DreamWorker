@@ -86,6 +86,31 @@ describe('preload typed API contract', () => {
     })
   })
 
+  it('routes project directory operations through typed preload channels', async () => {
+    const invoke = vi.fn().mockResolvedValue(null)
+    const api = createDreamWorkerApi(invoke)
+
+    await api.projects.pickLocalDirectory()
+    await api.projects.validateLocalDirectory('project_001')
+    await api.projects.initializeLocalDirectory('project_001')
+    await api.projects.openLocalDirectory('project_001')
+    await api.projects.exportProjectManifest('project_001')
+
+    expect(invoke).toHaveBeenCalledWith(CHANNELS.projectsPickLocalDirectory)
+    expect(invoke).toHaveBeenCalledWith(CHANNELS.projectsValidateLocalDirectory, {
+      projectId: 'project_001'
+    })
+    expect(invoke).toHaveBeenCalledWith(CHANNELS.projectsInitializeLocalDirectory, {
+      projectId: 'project_001'
+    })
+    expect(invoke).toHaveBeenCalledWith(CHANNELS.projectsOpenLocalDirectory, {
+      projectId: 'project_001'
+    })
+    expect(invoke).toHaveBeenCalledWith(CHANNELS.projectsExportManifest, {
+      projectId: 'project_001'
+    })
+  })
+
   it('cleans up stream listeners and forwards cancel through typed IPC', async () => {
     const unsubscribe = vi.fn()
     const invoke = vi.fn().mockImplementation(async (channel: string, payload: unknown) => {

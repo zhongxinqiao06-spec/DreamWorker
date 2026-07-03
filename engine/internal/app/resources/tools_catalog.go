@@ -35,6 +35,9 @@ func (s *Store) SaveTool(input ToolConfig) (ToolConfig, *AppError) {
 		input.BuiltIn = true
 	}
 	s.Tools[input.ToolID] = input
+	if appErr := s.persistWorkspaceLocked(); appErr != nil {
+		return ToolConfig{}, appErr
+	}
 	return input, nil
 }
 
@@ -50,6 +53,9 @@ func (s *Store) SetToolEnabled(toolID string, enabled bool) (ToolConfig, *AppErr
 	}
 	tool.Enabled = enabled
 	s.Tools[toolID] = tool
+	if appErr := s.persistWorkspaceLocked(); appErr != nil {
+		return ToolConfig{}, appErr
+	}
 	return tool, nil
 }
 
@@ -60,5 +66,8 @@ func (s *Store) DeleteTool(toolID string) (DeleteResult, *AppError) {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 	delete(s.Tools, toolID)
+	if appErr := s.persistWorkspaceLocked(); appErr != nil {
+		return DeleteResult{}, appErr
+	}
 	return DeleteResult{OK: true, DeletedID: toolID}, nil
 }

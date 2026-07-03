@@ -1,5 +1,11 @@
-import { ipcMain } from 'electron'
-import { CHANNELS, type ChatStreamEvent, type RuntimePingResponse } from '../shared/dreamworker-api'
+import { dialog, ipcMain, shell } from 'electron'
+import {
+  CHANNELS,
+  type ChatStreamEvent,
+  type ProjectDirectoryCheck,
+  type ProjectLocalDirectoryActionResult,
+  type RuntimePingResponse
+} from '../shared/dreamworker-api'
 import { createRuntimePingStubResponse } from './runtime-ping'
 
 export type RuntimePingProvider = () => Promise<RuntimePingResponse> | RuntimePingResponse
@@ -87,6 +93,17 @@ const ENGINE_ROUTES: readonly EngineRoute[] = [
   { channel: CHANNELS.projectsGet, path: '/projects/get', method: 'POST' },
   { channel: CHANNELS.projectsUpdate, path: '/projects/update', method: 'POST' },
   { channel: CHANNELS.projectsDelete, path: '/projects/delete', method: 'POST' },
+  {
+    channel: CHANNELS.projectsValidateLocalDirectory,
+    path: '/projects/local-directory/validate',
+    method: 'POST'
+  },
+  {
+    channel: CHANNELS.projectsInitializeLocalDirectory,
+    path: '/projects/local-directory/initialize',
+    method: 'POST'
+  },
+  { channel: CHANNELS.projectsExportManifest, path: '/projects/export-manifest', method: 'POST' },
   { channel: CHANNELS.projectsListModules, path: '/projects/modules', method: 'POST' },
   { channel: CHANNELS.projectsGetModule, path: '/projects/modules/get', method: 'POST' },
   {
@@ -109,6 +126,45 @@ export function registerRuntimeIpcHandlers(
   engineStreamCancelProvider?: (streamId: string) => void
 ): void {
   ipcMain.handle(CHANNELS.runtimePing, () => runtimePingProvider())
+
+  ipcMain.handle(CHANNELS.projectsPickLocalDirectory, async () => {
+    const result = await dialog.showOpenDialog({
+      title: '选择项目本地目录',
+      properties: ['openDirectory', 'createDirectory']
+    })
+    if (result.canceled) {
+      return null
+    }
+    return result.filePaths[0] ?? null
+  })
+
+  ipcMain.handle(CHANNELS.projectsOpenLocalDirectory, async (_event, payload: unknown) => {
+    if (!engineRequestProvider) {
+      throw new Error('Go Engine is not connected.')
+    }
+    const projectId = isRecord(payload) && typeof payload.projectId === 'string' ? payload.projectId : ''
+    const check = await engineRequestProvider<ProjectDirectoryCheck>(
+      '/projects/local-directory/validate',
+      { method: 'POST', body: { projectId } }
+    )
+    if (!check.localRootPath || !check.exists) {
+      return {
+        ok: false,
+        projectId,
+        localRootPath: check.localRootPath,
+        message: check.message,
+        check
+      } satisfies ProjectLocalDirectoryActionResult
+    }
+    const openError = await shell.openPath(check.localRootPath)
+    return {
+      ok: openError === '',
+      projectId,
+      localRootPath: check.localRootPath,
+      message: openError || '已打开项目本地目录。',
+      check
+    } satisfies ProjectLocalDirectoryActionResult
+  })
 
   for (const route of ENGINE_ROUTES) {
     ipcMain.handle(route.channel, (_event, payload: unknown) => {

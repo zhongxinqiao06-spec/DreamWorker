@@ -81,6 +81,9 @@ func (s *Store) SaveProfile(input ModelProfile) (ModelProfile, *AppError) {
 	input = ensureModelProfileDefaults(input)
 	input.UpdatedAt = now
 	s.Profiles[input.ProfileID] = input
+	if appErr := s.persistWorkspaceLocked(); appErr != nil {
+		return ModelProfile{}, appErr
+	}
 	return input, nil
 }
 
@@ -91,5 +94,8 @@ func (s *Store) DeleteProfile(profileID string) (DeleteResult, *AppError) {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 	delete(s.Profiles, profileID)
+	if appErr := s.persistWorkspaceLocked(); appErr != nil {
+		return DeleteResult{}, appErr
+	}
 	return DeleteResult{OK: true, DeletedID: profileID}, nil
 }

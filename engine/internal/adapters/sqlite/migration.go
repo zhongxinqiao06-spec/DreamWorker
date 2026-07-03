@@ -80,6 +80,17 @@ CREATE INDEX IF NOT EXISTS idx_capabilities_lifecycle ON capabilities (lifecycle
 CREATE INDEX IF NOT EXISTS idx_capabilities_trust_level ON capabilities (trust_level);
 `,
 		},
+		{
+			Version:        "0003_workspace_state_snapshot",
+			NonDestructive: true,
+			SQL: `
+CREATE TABLE IF NOT EXISTS workspace_state (
+  key TEXT PRIMARY KEY,
+  payload TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+`,
+		},
 	}
 }
 
