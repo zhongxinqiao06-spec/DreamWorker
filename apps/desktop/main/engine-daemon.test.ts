@@ -3,7 +3,7 @@ import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { platform } from 'node:process'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   ENGINE_READY_TIMEOUT_MS,
   cancelEngineDaemonStream,
@@ -14,6 +14,10 @@ import {
 } from './engine-daemon'
 
 describe('engine daemon bridge', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   it('parses the engine ready line', () => {
     const ready = parseEngineReadyLine(
       JSON.stringify({
@@ -82,6 +86,29 @@ describe('engine daemon bridge', () => {
       'secret-token'
     ])
     expect(launch.cwd).toContain('engine')
+  })
+
+  it('uses go run during electron-vite dev even when an engine binary exists', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'dreamworker-engine-dev-test-'))
+    const engineDir = join(rootDir, 'engine')
+    const engineBinDir = join(engineDir, 'bin')
+    const executableName = platform === 'win32' ? 'dreamworker-engine.exe' : 'dreamworker-engine'
+    mkdirSync(engineBinDir, { recursive: true })
+    writeFileSync(join(engineDir, 'go.mod'), 'module test/engine\n')
+    writeFileSync(join(engineBinDir, executableName), '')
+    vi.stubEnv('ELECTRON_RENDERER_URL', 'http://localhost:5173')
+
+    const launch = resolveEngineLaunchCommand('secret-token', rootDir)
+
+    expect(launch.command).toBe('go')
+    expect(launch.args).toEqual([
+      'run',
+      './cmd/dreamworker-engine',
+      'serve',
+      '--token',
+      'secret-token'
+    ])
+    expect(launch.cwd).toBe(engineDir)
   })
 
   it('uses packaged engine binary and .agent resources when present', () => {

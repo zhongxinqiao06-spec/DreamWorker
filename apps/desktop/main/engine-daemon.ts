@@ -85,6 +85,11 @@ export function resolveEngineLaunchCommand(
     }
   }
 
+  const sourceLaunchCommand = resolveGoRunEngineLaunchCommand(token, projectRoot, runtimeEnv)
+  if (isElectronViteDevSession() && sourceLaunchCommand) {
+    return sourceLaunchCommand
+  }
+
   const executableName =
     process.platform === 'win32' ? 'dreamworker-engine.exe' : 'dreamworker-engine'
   const explicitRoot = resolve(rootDir)
@@ -118,12 +123,14 @@ export function resolveEngineLaunchCommand(
     }
   }
 
-  return {
-    command: 'go',
-    args: ['run', './cmd/dreamworker-engine', 'serve', '--token', token],
-    cwd: join(projectRoot, 'engine'),
-    env: runtimeEnv
-  }
+  return (
+    sourceLaunchCommand ?? {
+      command: 'go',
+      args: ['run', './cmd/dreamworker-engine', 'serve', '--token', token],
+      cwd: join(projectRoot, 'engine'),
+      env: runtimeEnv
+    }
+  )
 }
 
 function resolveEngineRuntimeEnv(rootDir: string): Record<string, string> {
@@ -133,6 +140,28 @@ function resolveEngineRuntimeEnv(rootDir: string): Record<string, string> {
     env.DREAMWORKER_AGENT_DIR = agentDir
   }
   return env
+}
+
+function resolveGoRunEngineLaunchCommand(
+  token: string,
+  projectRoot: string,
+  runtimeEnv: Record<string, string>
+): EngineLaunchCommand | null {
+  const engineDir = join(projectRoot, 'engine')
+  if (!existsSync(join(engineDir, 'go.mod'))) {
+    return null
+  }
+
+  return {
+    command: 'go',
+    args: ['run', './cmd/dreamworker-engine', 'serve', '--token', token],
+    cwd: engineDir,
+    env: runtimeEnv
+  }
+}
+
+function isElectronViteDevSession(): boolean {
+  return Boolean(process.env.ELECTRON_RENDERER_URL)
 }
 
 function readDotEnvLocal(rootDir: string): Record<string, string> {
