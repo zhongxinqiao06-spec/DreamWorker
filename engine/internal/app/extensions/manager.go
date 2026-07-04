@@ -456,7 +456,17 @@ func (m *NodeExtensionManager) StartExtension(ctx context.Context, extensionID s
 
 	if settings.NineRouterRunMode == RunModeExternal {
 		m.appendLog(extensionID, "process", "当前为外部服务模式，DreamWorker 不启动本地进程。")
-		return m.TestExtension(ctx, extensionID)
+		result, appErr := m.TestExtension(ctx, extensionID)
+		if appErr != nil {
+			return result, appErr
+		}
+		if !result.OK {
+			message := "当前为外部服务模式，DreamWorker 不会启动受管 9Router；未检测到外部 9Router 服务。请切换到 DreamWorker 受管模式后再启动，或先手动启动 9Router。"
+			status := m.updateError(extensionID, "EXTENSION_EXTERNAL_SERVICE_UNREACHABLE", message)
+			result.Message = message
+			result.Status = status
+		}
+		return result, nil
 	}
 	if !settings.EnableNineRouterIntegration {
 		return ExtensionActionResult{}, &Error{Code: "EXTENSION_DISABLED", Message: "9Router 集成已关闭。", UserAction: "先在设置中启用 9Router 集成。"}

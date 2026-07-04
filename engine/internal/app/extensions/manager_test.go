@@ -136,6 +136,39 @@ func TestLocalNineRouterHTTPSSettingsNormalizeToHTTP(t *testing.T) {
 	}
 }
 
+func TestStartExtensionExternalModeExplainsManualStartup(t *testing.T) {
+	manager := NewNodeExtensionManager(WithBaseDir(t.TempDir()))
+	baseURL := "http://127.0.0.1:1/v1"
+	dashboardURL := "http://127.0.0.1:1"
+	if _, err := manager.UpdateSettings(UpdateSettingsInput{
+		NineRouterBaseURL:      &baseURL,
+		NineRouterDashboardURL: &dashboardURL,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result, appErr := manager.StartExtension(context.Background(), NineRouterExtensionID)
+	if appErr != nil {
+		t.Fatal(appErr)
+	}
+	if result.OK {
+		t.Fatalf("expected external startup to report unreachable service")
+	}
+	if result.Status.ProcessState != "stopped" || result.Status.HealthStatus != "error" || result.Status.LastErrorCode != "EXTENSION_EXTERNAL_SERVICE_UNREACHABLE" {
+		t.Fatalf("expected external service error status, got %#v", result.Status)
+	}
+	if !strings.Contains(result.Message, "外部服务模式") || !strings.Contains(result.Message, "不会启动受管 9Router") {
+		t.Fatalf("expected external mode guidance, got %q", result.Message)
+	}
+	lines, err := manager.TailLogs(TailLogsInput{ExtensionID: NineRouterExtensionID, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lines) == 0 || !strings.Contains(lines[0].Line, "外部服务模式") {
+		t.Fatalf("expected external mode log line, got %#v", lines)
+	}
+}
+
 func TestExtensionLogsAreRedacted(t *testing.T) {
 	manager := NewNodeExtensionManager(WithBaseDir(t.TempDir()))
 
