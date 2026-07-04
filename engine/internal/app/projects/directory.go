@@ -220,6 +220,18 @@ func (s *Store) writeProjectManifestFiles(project Project) (string, *AppError) {
 	return manifestPath, nil
 }
 
+func (s *Store) writeProjectManifestFilesIfInitialized(project Project) *AppError {
+	if project.LocalRootPath == nil || strings.TrimSpace(*project.LocalRootPath) == "" {
+		return nil
+	}
+	root := filepath.Clean(*project.LocalRootPath)
+	if !directoryExists(filepath.Join(root, ".dreamworker")) {
+		return nil
+	}
+	_, appErr := s.writeProjectManifestFiles(project)
+	return appErr
+}
+
 func (s *Store) projectManifest(project Project) map[string]any {
 	project = normalizeProject(project)
 	return map[string]any{

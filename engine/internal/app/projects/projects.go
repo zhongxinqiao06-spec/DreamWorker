@@ -117,6 +117,9 @@ func (s *Store) UpdateProject(input UpdateProjectInput) (Project, *AppError) {
 	}
 	project.UpdatedAt = s.Now()
 	project = normalizeProject(project)
+	if appErr := s.writeProjectManifestFilesIfInitialized(project); appErr != nil {
+		return Project{}, appErr
+	}
 	s.Projects[input.ProjectID] = project
 	if appErr := s.PersistWorkspaceSnapshotLocked(); appErr != nil {
 		return Project{}, appErr

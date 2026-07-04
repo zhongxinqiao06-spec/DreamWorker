@@ -1590,81 +1590,115 @@ export const useAppShellStore = defineStore('app-shell', {
       if (!this.activeProjectId) {
         return
       }
-      const previousLocalRootPath = this.activeProject?.localRootPath ?? null
-      const project = await window.dreamworker.projects.updateProject({
-        projectId: this.activeProjectId,
-        ...this.projectDraft
-      })
-      if (previousLocalRootPath !== project.localRootPath) {
-        this.activeProjectDirectoryCheck = null
+      try {
+        this.showResourceNotice('正在保存项目配置...', 'info')
+        const previousLocalRootPath = this.activeProject?.localRootPath ?? null
+        const project = await window.dreamworker.projects.updateProject({
+          projectId: this.activeProjectId,
+          ...this.projectDraft
+        })
+        if (previousLocalRootPath !== project.localRootPath) {
+          this.activeProjectDirectoryCheck = null
+        }
+        this.projects = this.projects.map((item) =>
+          item.projectId === project.projectId ? project : item
+        )
+        this.syncProjectDraft()
+        this.showResourceNotice('项目配置已保存')
+      } catch (error) {
+        this.showResourceFailure(error, '项目配置保存失败')
+        throw error
       }
-      this.projects = this.projects.map((item) =>
-        item.projectId === project.projectId ? project : item
-      )
-      this.syncProjectDraft()
-      this.showResourceNotice('项目配置已保存')
     },
     async chooseProjectLocalDirectory(): Promise<void> {
       if (!this.activeProjectId) {
         return
       }
-      const pickedPath = await window.dreamworker.projects.pickLocalDirectory()
-      if (!pickedPath) {
-        return
+      try {
+        const pickedPath = await window.dreamworker.projects.pickLocalDirectory()
+        if (!pickedPath) {
+          return
+        }
+        this.projectDraft.localRootPath = pickedPath
+        await this.saveActiveProject()
+        await this.validateActiveProjectDirectory()
+      } catch (error) {
+        this.showResourceFailure(error, '项目目录选择失败')
       }
-      this.projectDraft.localRootPath = pickedPath
-      await this.saveActiveProject()
-      await this.validateActiveProjectDirectory()
     },
     async validateActiveProjectDirectory(): Promise<void> {
       if (!this.activeProjectId) {
         return
       }
-      if (this.projectDraftDirty) {
-        await this.saveActiveProject()
+      try {
+        this.showResourceNotice('正在检测项目目录...', 'info')
+        if (this.projectDraftDirty) {
+          await this.saveActiveProject()
+        }
+        const check = await window.dreamworker.projects.validateLocalDirectory(this.activeProjectId)
+        this.activeProjectDirectoryCheck = check
+        await this.refreshActiveProject()
+        this.showResourceNotice(check.message, check.status === 'valid' ? 'success' : 'info')
+      } catch (error) {
+        this.showResourceFailure(error, '项目目录检测失败')
       }
-      const check = await window.dreamworker.projects.validateLocalDirectory(this.activeProjectId)
-      this.activeProjectDirectoryCheck = check
-      await this.refreshActiveProject()
-      this.showResourceNotice(check.message, check.status === 'valid' ? 'success' : 'info')
     },
     async initializeActiveProjectDirectory(): Promise<void> {
       if (!this.activeProjectId) {
         return
       }
-      if (this.projectDraftDirty) {
-        await this.saveActiveProject()
+      try {
+        this.showResourceNotice('正在初始化项目目录...', 'info')
+        if (this.projectDraftDirty) {
+          await this.saveActiveProject()
+        }
+        const check = await window.dreamworker.projects.initializeLocalDirectory(
+          this.activeProjectId
+        )
+        this.activeProjectDirectoryCheck = check
+        await this.refreshActiveProject()
+        this.showResourceNotice(check.message, check.status === 'valid' ? 'success' : 'info')
+      } catch (error) {
+        this.showResourceFailure(error, '项目目录初始化失败')
       }
-      const check = await window.dreamworker.projects.initializeLocalDirectory(this.activeProjectId)
-      this.activeProjectDirectoryCheck = check
-      await this.refreshActiveProject()
-      this.showResourceNotice(check.message, check.status === 'valid' ? 'success' : 'info')
     },
     async openActiveProjectDirectory(): Promise<void> {
       if (!this.activeProjectId) {
         return
       }
-      if (this.projectDraftDirty) {
-        await this.saveActiveProject()
+      try {
+        this.showResourceNotice('正在打开项目目录...', 'info')
+        if (this.projectDraftDirty) {
+          await this.saveActiveProject()
+        }
+        const result = await window.dreamworker.projects.openLocalDirectory(this.activeProjectId)
+        if (result.check) {
+          this.activeProjectDirectoryCheck = result.check
+        }
+        await this.refreshActiveProject()
+        this.showResourceNotice(result.message, result.ok ? 'success' : 'error')
+      } catch (error) {
+        this.showResourceFailure(error, '项目目录打开失败')
       }
-      const result = await window.dreamworker.projects.openLocalDirectory(this.activeProjectId)
-      if (result.check) {
-        this.activeProjectDirectoryCheck = result.check
-      }
-      await this.refreshActiveProject()
-      this.showResourceNotice(result.message, result.ok ? 'success' : 'error')
     },
     async exportActiveProjectManifest(): Promise<void> {
       if (!this.activeProjectId) {
         return
       }
-      if (this.projectDraftDirty) {
-        await this.saveActiveProject()
+      try {
+        this.showResourceNotice('正在导出项目 manifest...', 'info')
+        if (this.projectDraftDirty) {
+          await this.saveActiveProject()
+        }
+        const result = await window.dreamworker.projects.exportProjectManifest(this.activeProjectId)
+        this.showResourceNotice(
+          result.manifestPath
+            ? `项目 manifest 已导出：${result.manifestPath}`
+            : '项目 manifest 已生成'
+        )
+      } catch (error) {
+        this.showResourceFailure(error, '项目 manifest 导出失败')
       }
-      const result = await window.dreamworker.projects.exportProjectManifest(this.activeProjectId)
-      this.showResourceNotice(
-        result.manifestPath ? `项目 manifest 已导出：${result.manifestPath}` : '项目 manifest 已生成'
-      )
     },
     async deleteActiveProject(): Promise<void> {
       if (!this.activeProjectId) {

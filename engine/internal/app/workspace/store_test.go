@@ -584,6 +584,95 @@ func TestUpdateProjectLocalRootChangeInvalidatesPreviousDirectoryCheck(t *testin
 	}
 }
 
+func TestUpdateProjectSyncsInitializedLocalManifest(t *testing.T) {
+	store := newTestStore()
+	root := t.TempDir()
+	project, appErr := store.CreateProject(CreateProjectInput{
+		Title:         "Local manifest",
+		Description:   "before save",
+		LocalRootPath: &root,
+	})
+	if appErr != nil {
+		t.Fatalf("create project: %v", appErr)
+	}
+	if _, appErr := store.InitializeLocalDirectory(project.ProjectID); appErr != nil {
+		t.Fatalf("initialize directory: %v", appErr)
+	}
+
+	title := "Saved Project Config"
+	description := "saved through UpdateProject"
+	enabledAgents := []string{"agent_general_assistant"}
+	updated, appErr := store.UpdateProject(UpdateProjectInput{
+		ProjectID:     project.ProjectID,
+		Title:         &title,
+		Description:   &description,
+		EnabledAgents: &enabledAgents,
+	})
+	if appErr != nil {
+		t.Fatalf("update project: %v", appErr)
+	}
+	if updated.Title != title {
+		t.Fatalf("updated title = %q, want %q", updated.Title, title)
+	}
+
+	projectJSON := filepath.Join(root, ".dreamworker", "project.json")
+	payload, err := os.ReadFile(projectJSON)
+	if err != nil {
+		t.Fatalf("read project.json: %v", err)
+	}
+	var localProject map[string]any
+	if err := json.Unmarshal(payload, &localProject); err != nil {
+		t.Fatalf("decode project.json: %v", err)
+	}
+	if localProject["title"] != title || localProject["description"] != description {
+		t.Fatalf("project.json not synced after save: %#v", localProject)
+	}
+	if agents, ok := localProject["enabledAgents"].([]any); !ok || len(agents) != 1 || agents[0] != "agent_general_assistant" {
+		t.Fatalf("project.json enabledAgents not synced: %#v", localProject["enabledAgents"])
+	}
+
+	manifestJSON := filepath.Join(root, ".dreamworker", "manifest.json")
+	payload, err = os.ReadFile(manifestJSON)
+	if err != nil {
+		t.Fatalf("read manifest.json: %v", err)
+	}
+	var manifest map[string]any
+	if err := json.Unmarshal(payload, &manifest); err != nil {
+		t.Fatalf("decode manifest.json: %v", err)
+	}
+	manifestProject, ok := manifest["project"].(map[string]any)
+	if !ok {
+		t.Fatalf("manifest project missing: %#v", manifest)
+	}
+	if manifestProject["title"] != title {
+		t.Fatalf("manifest title = %#v, want %q", manifestProject["title"], title)
+	}
+}
+
+func TestUpdateProjectDoesNotCreateLocalMetadataBeforeInitialization(t *testing.T) {
+	store := newTestStore()
+	root := t.TempDir()
+	project, appErr := store.CreateProject(CreateProjectInput{
+		Title:         "Not initialized",
+		Description:   "save only",
+		LocalRootPath: &root,
+	})
+	if appErr != nil {
+		t.Fatalf("create project: %v", appErr)
+	}
+
+	title := "Database Only Before Init"
+	if _, appErr := store.UpdateProject(UpdateProjectInput{
+		ProjectID: project.ProjectID,
+		Title:     &title,
+	}); appErr != nil {
+		t.Fatalf("update project: %v", appErr)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".dreamworker")); !os.IsNotExist(err) {
+		t.Fatalf("save before initialization should not create .dreamworker, err=%v", err)
+	}
+}
+
 func TestProjectManifestDoesNotLeakSecrets(t *testing.T) {
 	store := newTestStore()
 	_, appErr := store.SaveProvider(SaveModelProviderInput{

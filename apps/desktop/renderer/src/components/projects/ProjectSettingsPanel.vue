@@ -440,18 +440,18 @@ function confirmDeleteProject(): void {
                 placeholder="选择或粘贴项目根目录"
                 aria-label="本地项目目录"
               />
-              <button type="button" title="选择目录" @click="appShell.chooseProjectLocalDirectory">
+              <button type="button" title="选择目录" @click="appShell.chooseProjectLocalDirectory()">
                 <Folder :size="16" aria-hidden="true" />
               </button>
-              <button type="button" title="打开目录" @click="appShell.openActiveProjectDirectory">
+              <button type="button" title="打开目录" @click="appShell.openActiveProjectDirectory()">
                 <FolderOpen :size="16" aria-hidden="true" />
               </button>
-              <button type="button" title="重新检测" @click="appShell.validateActiveProjectDirectory">
+              <button type="button" title="重新检测" @click="appShell.validateActiveProjectDirectory()">
                 <RefreshCw :size="16" aria-hidden="true" />
               </button>
             </div>
             <div class="horizontal-actions">
-              <button class="primary-button" type="button" @click="appShell.initializeActiveProjectDirectory">
+              <button class="primary-button" type="button" @click="appShell.initializeActiveProjectDirectory()">
                 <CheckCircle2 :size="15" aria-hidden="true" />
                 初始化项目目录
               </button>
@@ -847,14 +847,14 @@ function confirmDeleteProject(): void {
                 <Download :size="17" aria-hidden="true" />
                 <strong>导出与危险操作</strong>
               </div>
-              <button class="primary-button" type="button" @click="appShell.exportActiveProjectManifest">
+              <button class="primary-button" type="button" @click="appShell.exportActiveProjectManifest()">
                 <Download :size="15" aria-hidden="true" />
                 导出项目 manifest
               </button>
               <button type="button" @click="appShell.projectDraft.status = 'archived'">
                 归档项目
               </button>
-              <button class="danger-button" type="button" @click="confirmDeleteProject">
+              <button class="danger-button" type="button" @click="confirmDeleteProject()">
                 <Trash2 :size="15" aria-hidden="true" />
                 仅删除项目记录
               </button>
@@ -875,7 +875,7 @@ function confirmDeleteProject(): void {
         class="primary-button"
         :class="{ 'is-dirty': appShell.projectDraftDirty }"
         type="button"
-        :disabled="!appShell.activeProject || !appShell.projectDraftDirty"
+        :disabled="!appShell.activeProject"
         @click="appShell.saveActiveProject()"
       >
         <Save :size="15" aria-hidden="true" />
