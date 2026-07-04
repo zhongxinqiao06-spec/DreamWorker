@@ -86,6 +86,16 @@ onBeforeUnmount(() => {
     <section class="main-stage">
       <WorkspaceTopBar />
       <p v-if="appShell.errorBanner" class="system-banner">{{ appShell.errorBanner }}</p>
+      <Transition name="toast-fade">
+        <div
+          v-if="appShell.resourceNotice"
+          class="resource-toast global-resource-toast"
+          :data-tone="appShell.resourceNotice.tone"
+          role="status"
+        >
+          {{ appShell.resourceNotice.message }}
+        </div>
+      </Transition>
       <section class="workspace-slot">
         <ChatWorkspace v-if="appShell.activePrimary === 'chat'" />
         <ProjectsWorkspace v-else-if="appShell.activePrimary === 'projects'" />
@@ -132,5 +142,18 @@ onBeforeUnmount(() => {
 .splash-fade-enter-from,
 .splash-fade-leave-to {
   opacity: 0;
+}
+
+.toast-fade-enter-active,
+.toast-fade-leave-active {
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.toast-fade-enter-from,
+.toast-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 </style>

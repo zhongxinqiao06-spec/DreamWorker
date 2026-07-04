@@ -35,6 +35,7 @@ import type {
 import {
   createEmptyProjectDraft,
   createProjectDraft,
+  projectModuleIds,
   toggleSelection,
   type ProjectConfigDraft
 } from './project-draft'
@@ -607,6 +608,42 @@ function createDefaultAppSettings(): AppSettings {
     nineRouterManagedTimeoutMs: 30000,
     allowNineRouterAsFreeRoute: true,
     allowAgentsUseNineRouter: true
+  }
+}
+
+function cloneProjectRecord(value: Record<string, unknown>): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(value)) as Record<string, unknown>
+}
+
+function createPlainProjectDraft(draft: ProjectConfigDraft): ProjectConfigDraft {
+  return {
+    title: draft.title,
+    description: draft.description,
+    status: draft.status,
+    localRootPath: draft.localRootPath,
+    defaultModelProfileId: draft.defaultModelProfileId,
+    defaultRouteProfileId: draft.defaultRouteProfileId,
+    enabledAgents: [...draft.enabledAgents],
+    enabledSkills: [...draft.enabledSkills],
+    enabledTools: [...draft.enabledTools],
+    enabledMcpServers: [...draft.enabledMcpServers],
+    moduleConfigs: projectModuleIds.reduce((configs, moduleId) => {
+      const config = draft.moduleConfigs[moduleId]
+      configs[moduleId] = {
+        enabled: config.enabled,
+        defaultAgentIds: [...config.defaultAgentIds],
+        enabledSkillIds: [...config.enabledSkillIds],
+        enabledToolIds: [...config.enabledToolIds],
+        enabledMcpServerIds: [...config.enabledMcpServerIds],
+        outputDir: config.outputDir,
+        inputSchema: cloneProjectRecord(config.inputSchema),
+        parameters: cloneProjectRecord(config.parameters)
+      }
+      return configs
+    }, createEmptyProjectDraft().moduleConfigs),
+    memoryConfig: { ...draft.memoryConfig },
+    runPolicy: { ...draft.runPolicy },
+    securityPolicy: { ...draft.securityPolicy }
   }
 }
 
@@ -1595,7 +1632,7 @@ export const useAppShellStore = defineStore('app-shell', {
         const previousLocalRootPath = this.activeProject?.localRootPath ?? null
         const project = await window.dreamworker.projects.updateProject({
           projectId: this.activeProjectId,
-          ...this.projectDraft
+          ...createPlainProjectDraft(this.projectDraft)
         })
         if (previousLocalRootPath !== project.localRootPath) {
           this.activeProjectDirectoryCheck = null

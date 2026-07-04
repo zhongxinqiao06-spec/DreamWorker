@@ -468,28 +468,31 @@ function createDreamWorkerApiStub(): DreamWorkerApi {
         createdAt: '2026-07-01T00:00:00Z',
         updatedAt: '2026-07-01T00:00:00Z'
       }),
-      updateProject: vi.fn().mockImplementation(async (input) => ({
-        projectId: input.projectId,
-        title: input.title ?? 'AI 项目孵化器',
-        description: input.description ?? '项目空间种子数据。',
-        status: input.status ?? 'active',
-        ...projectWorkspaceDefaults(),
-        localRootPath: input.localRootPath ?? null,
-        localDirectoryStatus: input.localRootPath ? 'invalid' : 'not_set',
-        localDirectoryLastCheckedAt: null,
-        defaultModelProfileId: input.defaultModelProfileId ?? 'profile_fast',
-        defaultRouteProfileId: input.defaultRouteProfileId ?? null,
-        enabledAgents: input.enabledAgents ?? ['agent_general_assistant'],
-        enabledSkills: input.enabledSkills ?? ['skill_opportunity_scan'],
-        enabledTools: input.enabledTools ?? ['tool_model_generate_stub'],
-        enabledMcpServers: input.enabledMcpServers ?? [],
-        moduleConfigs: input.moduleConfigs ?? createDefaultProjectModuleConfigs(),
-        memoryConfig: input.memoryConfig ?? projectWorkspaceDefaults().memoryConfig,
-        runPolicy: input.runPolicy ?? projectWorkspaceDefaults().runPolicy,
-        securityPolicy: input.securityPolicy ?? projectWorkspaceDefaults().securityPolicy,
-        createdAt: '2026-07-01T00:00:00Z',
-        updatedAt: '2026-07-01T00:00:00Z'
-      })),
+      updateProject: vi.fn().mockImplementation(async (input) => {
+        expect(() => structuredClone(input)).not.toThrow()
+        return {
+          projectId: input.projectId,
+          title: input.title ?? 'AI 项目孵化器',
+          description: input.description ?? '项目空间种子数据。',
+          status: input.status ?? 'active',
+          ...projectWorkspaceDefaults(),
+          localRootPath: input.localRootPath ?? null,
+          localDirectoryStatus: input.localRootPath ? 'invalid' : 'not_set',
+          localDirectoryLastCheckedAt: null,
+          defaultModelProfileId: input.defaultModelProfileId ?? 'profile_fast',
+          defaultRouteProfileId: input.defaultRouteProfileId ?? null,
+          enabledAgents: input.enabledAgents ?? ['agent_general_assistant'],
+          enabledSkills: input.enabledSkills ?? ['skill_opportunity_scan'],
+          enabledTools: input.enabledTools ?? ['tool_model_generate_stub'],
+          enabledMcpServers: input.enabledMcpServers ?? [],
+          moduleConfigs: input.moduleConfigs ?? createDefaultProjectModuleConfigs(),
+          memoryConfig: input.memoryConfig ?? projectWorkspaceDefaults().memoryConfig,
+          runPolicy: input.runPolicy ?? projectWorkspaceDefaults().runPolicy,
+          securityPolicy: input.securityPolicy ?? projectWorkspaceDefaults().securityPolicy,
+          createdAt: '2026-07-01T00:00:00Z',
+          updatedAt: '2026-07-01T00:00:00Z'
+        }
+      }),
       deleteProject: vi.fn().mockResolvedValue({ ok: true, deletedId: 'project_001' }),
       pickLocalDirectory: vi.fn().mockResolvedValue('C:\\DreamWorkerProjects\\project_001'),
       validateLocalDirectory: vi.fn().mockResolvedValue({
@@ -875,6 +878,7 @@ describe('app shell workspace state', () => {
       listProjects: vi.fn().mockResolvedValue([project]),
       getProject: vi.fn().mockImplementation(async () => project),
       updateProject: vi.fn().mockImplementation(async (input) => {
+        expect(() => structuredClone(input)).not.toThrow()
         project = {
           ...project,
           ...input,
@@ -941,6 +945,7 @@ describe('app shell workspace state', () => {
       listProjects: vi.fn().mockResolvedValue([project]),
       getProject: vi.fn().mockImplementation(async () => project),
       updateProject: vi.fn().mockImplementation(async (input) => {
+        expect(() => structuredClone(input)).not.toThrow()
         project = {
           ...project,
           ...input,

@@ -1542,6 +1542,13 @@ button:disabled {
   font-weight: 800;
 }
 
+.global-resource-toast {
+  position: fixed;
+  top: 58px;
+  right: 28px;
+  z-index: 80;
+}
+
 .resource-toast[data-tone='success'] {
   border-color: rgba(75, 255, 171, 0.38);
   color: var(--ok);

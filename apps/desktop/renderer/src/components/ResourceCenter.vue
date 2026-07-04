@@ -276,15 +276,6 @@ async function copyProviderApiKey(): Promise<void> {
 
 <template>
   <section class="resource-page panel-surface">
-    <div
-      v-if="appShell.resourceNotice"
-      class="resource-toast"
-      :data-tone="appShell.resourceNotice.tone"
-      role="status"
-    >
-      {{ appShell.resourceNotice.message }}
-    </div>
-
     <header class="resource-header resource-header-compact">
       <div>
         <p class="eyebrow">资源配置中心</p>
