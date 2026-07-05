@@ -5,7 +5,9 @@ import { request as httpRequest, type ClientRequest } from 'node:http'
 import { request as httpsRequest } from 'node:https'
 import { join, resolve } from 'node:path'
 import type { Readable } from 'node:stream'
-import type { ChatStreamEvent, RuntimePingResponse } from '../shared/dreamworker-api'
+import type { ChatStreamEvent, CodingStreamEvent, RuntimePingResponse } from '../shared/dreamworker-api'
+
+type EngineStreamEvent = ChatStreamEvent | CodingStreamEvent
 
 export type EngineReadyMessage = {
   readonly ok: true
@@ -39,7 +41,7 @@ export type EngineDaemon = {
       readonly body: unknown
       readonly streamId: string
     },
-    onEvent: (event: ChatStreamEvent) => void
+    onEvent: (event: EngineStreamEvent) => void
   ) => Promise<{ readonly streamId: string }>
   readonly cancelStream: (streamId: string) => void
   readonly stop: () => void
@@ -139,7 +141,45 @@ function resolveEngineRuntimeEnv(rootDir: string): Record<string, string> {
   if (existsSync(agentDir)) {
     env.DREAMWORKER_AGENT_DIR = agentDir
   }
+  const codingRuntime = resolveCodingAgentRuntime(rootDir)
+  if (codingRuntime.runtimeDir) {
+    env.DREAMWORKER_CODING_AGENT_RUNTIME_DIR = codingRuntime.runtimeDir
+  }
+  if (codingRuntime.nodeBin) {
+    env.DREAMWORKER_CODING_AGENT_NODE_BIN = codingRuntime.nodeBin
+  }
   return env
+}
+
+function resolveCodingAgentRuntime(rootDir: string): {
+  readonly runtimeDir: string
+  readonly nodeBin: string
+} {
+  const explicitRuntimeDir = process.env.DREAMWORKER_CODING_AGENT_RUNTIME_DIR
+  const explicitNodeBin = process.env.DREAMWORKER_CODING_AGENT_NODE_BIN
+  if (explicitRuntimeDir) {
+    return { runtimeDir: explicitRuntimeDir, nodeBin: explicitNodeBin ?? '' }
+  }
+
+  const packagedRuntimeDir = join(rootDir, 'coding-agent-runtime')
+  if (existsSync(packagedRuntimeDir)) {
+    const packagedNodeBin = join(
+      packagedRuntimeDir,
+      'node',
+      process.platform === 'win32' ? 'node.exe' : 'node'
+    )
+    return {
+      runtimeDir: packagedRuntimeDir,
+      nodeBin: existsSync(packagedNodeBin) ? packagedNodeBin : (explicitNodeBin ?? '')
+    }
+  }
+
+  const workspaceRuntimeDir = join(rootDir, 'apps', 'coding-agent-adapter')
+  if (existsSync(join(workspaceRuntimeDir, 'package.json'))) {
+    return { runtimeDir: workspaceRuntimeDir, nodeBin: explicitNodeBin ?? 'node' }
+  }
+
+  return { runtimeDir: '', nodeBin: explicitNodeBin ?? '' }
 }
 
 function resolveGoRunEngineLaunchCommand(
@@ -273,7 +313,7 @@ export function startEngineDaemonStream(
   path: string,
   body: unknown,
   streamId: string,
-  onEvent: (event: ChatStreamEvent) => void
+  onEvent: (event: EngineStreamEvent) => void
 ): void {
   const endpoint = new URL(path, baseUrl)
   const payload = JSON.stringify(body)
@@ -348,7 +388,7 @@ function createFailedStreamEvent(streamId: string, message: string): ChatStreamE
   }
 }
 
-function parseSseNodeStream(stream: Readable, onEvent: (event: ChatStreamEvent) => void): void {
+function parseSseNodeStream(stream: Readable, onEvent: (event: EngineStreamEvent) => void): void {
   let buffer = ''
   stream.setEncoding('utf8')
   stream.on('data', (chunk: string) => {
@@ -368,7 +408,7 @@ function parseSseNodeStream(stream: Readable, onEvent: (event: ChatStreamEvent) 
   })
 }
 
-function emitSseFrame(frame: string, onEvent: (event: ChatStreamEvent) => void): void {
+function emitSseFrame(frame: string, onEvent: (event: EngineStreamEvent) => void): void {
   const data = frame
     .split(/\r?\n/)
     .filter((line) => line.startsWith('data:'))
@@ -378,7 +418,7 @@ function emitSseFrame(frame: string, onEvent: (event: ChatStreamEvent) => void):
     return
   }
   try {
-    onEvent(JSON.parse(data) as ChatStreamEvent)
+    onEvent(JSON.parse(data) as EngineStreamEvent)
   } catch {
     // Ignore malformed local stream frames.
   }

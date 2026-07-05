@@ -3,8 +3,20 @@ package ports
 import "context"
 
 type ChatModelMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string                 `json:"role"`
+	Content string                 `json:"content"`
+	Parts   []ChatModelContentPart `json:"parts,omitempty"`
+}
+
+type ChatModelContentPart struct {
+	Type     string             `json:"type"`
+	Text     string             `json:"text,omitempty"`
+	ImageURL *ChatModelImageURL `json:"image_url,omitempty"`
+}
+
+type ChatModelImageURL struct {
+	URL    string `json:"url"`
+	Detail string `json:"detail,omitempty"`
 }
 
 type ChatModelUsage struct {
@@ -18,6 +30,26 @@ type ChatStreamError struct {
 	Code        string `json:"code"`
 	Message     string `json:"message"`
 	Recoverable bool   `json:"recoverable"`
+}
+
+type ImageGenerationInput struct {
+	Prompt         string `json:"prompt"`
+	Size           string `json:"size"`
+	ResponseFormat string `json:"responseFormat"`
+}
+
+type GeneratedImage struct {
+	URL           string `json:"url,omitempty"`
+	DataURL       string `json:"dataUrl,omitempty"`
+	MimeType      string `json:"mimeType,omitempty"`
+	RevisedPrompt string `json:"revisedPrompt,omitempty"`
+}
+
+type ImageGenerationResult struct {
+	ProviderID string           `json:"providerId"`
+	Model      string           `json:"model"`
+	Images     []GeneratedImage `json:"images"`
+	LatencyMS  int              `json:"latencyMs"`
 }
 
 type ToolExecutionRequest struct {
@@ -86,5 +118,6 @@ type ProviderModelDiscoveryResult struct {
 type ChatModelGateway interface {
 	DiscoverModels(ctx context.Context, provider ChatModelProvider) ProviderModelDiscoveryResult
 	StreamChat(ctx context.Context, provider ChatModelProvider, profile ChatModelProfile, messages []ChatModelMessage) <-chan ChatModelStreamChunk
+	GenerateImage(ctx context.Context, provider ChatModelProvider, profile ChatModelProfile, input ImageGenerationInput) (ImageGenerationResult, error)
 	HealthCheck(ctx context.Context, provider ChatModelProvider) ProviderHealth
 }

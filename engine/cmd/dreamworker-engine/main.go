@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	mineruadapter "github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/adapters/mineru"
 	"github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/adapters/modelgateway"
 	sqliteadapter "github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/adapters/sqlite"
 	"github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/api/runtimeapi"
@@ -69,6 +70,7 @@ func runServe(args []string, stdout io.Writer, stderr io.Writer) error {
 	storeOptions := []workspace.StoreOption{
 		workspace.WithTraceID(runtimeapi.NewTraceID),
 		workspace.WithModelGateway(modelgateway.NewGateway()),
+		workspace.WithDocumentParser(mineruadapter.NewParser()),
 		workspace.WithConfigDir(configDir),
 	}
 	storeOptions = append(storeOptions, persistenceOptions...)

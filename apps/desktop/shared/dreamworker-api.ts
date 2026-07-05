@@ -63,6 +63,10 @@ export const CHANNELS = {
   projectsListModules: 'projects:listProjectModules',
   projectsGetModule: 'projects:getProjectModule',
   projectsUpdateModuleConfig: 'projects:updateProjectModuleConfig',
+  projectsImportRequirementFiles: 'projects:importRequirementFiles',
+  projectsListRequirementSources: 'projects:listRequirementSources',
+  projectsPreviewRequirementSource: 'projects:previewRequirementSource',
+  projectsRunRequirementAnalysis: 'projects:runRequirementAnalysis',
   chatListSessions: 'chat:listSessions',
   chatCreateSession: 'chat:createSession',
   chatUpdateSession: 'chat:updateSession',
@@ -71,7 +75,16 @@ export const CHANNELS = {
   chatStartStream: 'chat:startStream',
   chatCancelStream: 'chat:cancelStream',
   chatStreamEvent: 'chat:streamEvent',
-  chatDeleteSession: 'chat:deleteSession'
+  chatDeleteSession: 'chat:deleteSession',
+  codingListEngines: 'coding:listEngines',
+  codingCreateSession: 'coding:createSession',
+  codingGetSession: 'coding:getSession',
+  codingListFiles: 'coding:listFiles',
+  codingReadFile: 'coding:readFile',
+  codingFileStatus: 'coding:fileStatus',
+  codingStartTurn: 'coding:startTurn',
+  codingCancelTurn: 'coding:cancelTurn',
+  codingStreamEvent: 'coding:streamEvent'
 } as const
 
 export const RUNTIME_PING_CHANNEL = CHANNELS.runtimePing
@@ -587,6 +600,100 @@ export type UpdateProjectModuleConfigInput = {
   readonly config: Record<string, string | number | boolean>
 }
 
+export type RequirementSource = {
+  readonly sourceId: string
+  readonly kind: 'project_description' | 'imported_file' | 'explore_artifact'
+  readonly fileName: string
+  readonly relativePath: string
+  readonly absolutePath?: string
+  readonly mimeType: string
+  readonly charCount: number
+  readonly importedAt: string
+  readonly summary: string
+}
+
+export type RequirementImportResult = {
+  readonly projectId: string
+  readonly runId: string
+  readonly sources: readonly RequirementSource[]
+  readonly message: string
+}
+
+export type RequirementSourcesResult = {
+  readonly projectId: string
+  readonly sources: readonly RequirementSource[]
+}
+
+export type PreviewRequirementSourceInput = {
+  readonly projectId: string
+  readonly sourceId: string
+}
+
+export type RequirementSourcePreviewResult = {
+  readonly projectId: string
+  readonly source: RequirementSource
+  readonly parser: string
+  readonly content: string
+  readonly charCount: number
+  readonly truncated: boolean
+  readonly traceId: string
+  readonly createdAt: string
+}
+
+export type RunRequirementAnalysisInput = {
+  readonly projectId: string
+  readonly sourceIds: readonly string[]
+  readonly prompt: string
+}
+
+export type RequirementFeatureItem = {
+  readonly featureId: string
+  readonly module: string
+  readonly name: string
+  readonly role: string
+  readonly scenario: string
+  readonly description: string
+  readonly priority: string
+  readonly type: string
+  readonly inputs: readonly string[]
+  readonly outputs: readonly string[]
+  readonly acceptanceCriteria: readonly string[]
+  readonly dependencies: readonly string[]
+  readonly sourceRefs: readonly string[]
+  readonly notes: string
+}
+
+export type RequirementAnalysisResult = {
+  readonly projectTitle: string
+  readonly summary: string
+  readonly sources: readonly string[]
+  readonly roles: readonly string[]
+  readonly features: readonly RequirementFeatureItem[]
+  readonly nonFunctionalRequirements: readonly string[]
+  readonly risks: readonly string[]
+  readonly openQuestions: readonly string[]
+}
+
+export type RequirementOutputFile = {
+  readonly kind: string
+  readonly fileName: string
+  readonly relativePath: string
+  readonly absolutePath: string
+}
+
+export type RequirementAnalysisRun = {
+  readonly runId: string
+  readonly projectId: string
+  readonly status: 'completed' | 'failed' | 'running'
+  readonly sources: readonly RequirementSource[]
+  readonly featureCount: number
+  readonly outputFiles: readonly RequirementOutputFile[]
+  readonly warnings: readonly string[]
+  readonly traceId: string
+  readonly createdAt: string
+  readonly analysis: RequirementAnalysisResult
+}
+
 export type ChatSession = {
   readonly sessionId: string
   readonly projectId: string | null
@@ -815,6 +922,151 @@ export type ChatStreamController = {
   readonly cancel: () => Promise<void>
 }
 
+export type CodingEngineId = 'claude_agent' | 'codex' | 'opencode'
+
+export type CodingEngineDescriptor = {
+  readonly engineId: CodingEngineId
+  readonly displayName: string
+  readonly description: string
+  readonly supportedProviderTypes: readonly ProviderType[]
+  readonly preferredProviderIds: readonly string[]
+  readonly directWrite: boolean
+  readonly streaming: boolean
+}
+
+export type CodingRuntimeStatus = {
+  readonly runtimeDir: string
+  readonly nodeBin: string
+  readonly adapterPath: string
+  readonly available: boolean
+  readonly message: string
+  readonly engines: readonly CodingEngineDescriptor[]
+}
+
+export type CreateCodingSessionInput = {
+  readonly projectId: string
+  readonly engineId: CodingEngineId
+  readonly providerId: string
+  readonly model: string
+  readonly title?: string
+}
+
+export type CodingSession = {
+  readonly sessionId: string
+  readonly projectId: string
+  readonly engineId: CodingEngineId
+  readonly providerId: string
+  readonly model: string
+  readonly title: string
+  readonly localRootPath: string
+  readonly engineThreadId: string
+  readonly status: 'ready' | 'running' | 'completed' | 'failed' | 'cancelled' | string
+  readonly createdAt: string
+  readonly updatedAt: string
+}
+
+export type CodingTurnInput = {
+  readonly sessionId?: string
+  readonly projectId: string
+  readonly engineId: CodingEngineId
+  readonly providerId: string
+  readonly model: string
+  readonly prompt: string
+  readonly streamId?: string
+}
+
+export type CancelCodingTurnInput = {
+  readonly streamId: string
+}
+
+export type CodingFileEntry = {
+  readonly path: string
+  readonly name: string
+  readonly isDir: boolean
+  readonly size: number
+  readonly modifiedAt: string
+  readonly gitStatus?: string
+}
+
+export type CodingListFilesInput = {
+  readonly projectId: string
+  readonly query?: string
+  readonly limit?: number
+}
+
+export type CodingReadFileInput = {
+  readonly projectId: string
+  readonly path: string
+}
+
+export type CodingReadFileResult = {
+  readonly projectId: string
+  readonly path: string
+  readonly content: string
+  readonly size: number
+  readonly truncated: boolean
+  readonly mimeType: string
+}
+
+export type CodingFileChange = {
+  readonly path: string
+  readonly status: string
+}
+
+export type CodingFileStatus = {
+  readonly projectId: string
+  readonly branch: string
+  readonly changes: readonly CodingFileChange[]
+  readonly clean: boolean
+  readonly message: string
+}
+
+export type CodingToolCall = {
+  readonly callId: string
+  readonly toolName: string
+  readonly arguments?: unknown
+}
+
+export type CodingStreamEvent = {
+  readonly type:
+    | 'started'
+    | 'delta'
+    | 'tool_call'
+    | 'shell_output'
+    | 'file_changed'
+    | 'completed'
+    | 'cancelled'
+    | 'error'
+  readonly streamId: string
+  readonly sessionId: string
+  readonly engineId: CodingEngineId
+  readonly providerId: string
+  readonly model: string
+  readonly trace_id: string
+  readonly sequence: number
+  readonly timestamp: string
+  readonly delta?: string
+  readonly message?: string
+  readonly command?: string
+  readonly output?: string
+  readonly path?: string
+  readonly status?: string
+  readonly engineThreadId?: string
+  readonly toolCall?: CodingToolCall
+  readonly file?: CodingFileChange
+  readonly error?: ChatStreamError
+  readonly runtimeAvailable?: boolean
+}
+
+export type CodingStreamStartResult = {
+  readonly streamId: string
+}
+
+export type CodingStreamController = {
+  readonly streamId: string
+  readonly cancel: () => Promise<void>
+}
+
 export type DeleteResult = {
   readonly ok: true
   readonly deletedId: string
@@ -911,6 +1163,14 @@ export type DreamWorkerApi = {
     readonly updateProjectModuleConfig: (
       input: UpdateProjectModuleConfigInput
     ) => Promise<ProjectModule>
+    readonly importRequirementFiles: (projectId: string) => Promise<RequirementImportResult | null>
+    readonly listRequirementSources: (projectId: string) => Promise<RequirementSourcesResult>
+    readonly previewRequirementSource: (
+      input: PreviewRequirementSourceInput
+    ) => Promise<RequirementSourcePreviewResult>
+    readonly runRequirementAnalysis: (
+      input: RunRequirementAnalysisInput
+    ) => Promise<RequirementAnalysisRun>
   }
   readonly chat: {
     readonly listSessions: () => Promise<readonly ChatSession[]>
@@ -924,6 +1184,19 @@ export type DreamWorkerApi = {
     ) => Promise<ChatStreamController>
     readonly cancelStream: (input: CancelChatStreamInput) => Promise<DeleteResult>
     readonly deleteSession: (sessionId: string) => Promise<DeleteResult>
+  }
+  readonly coding: {
+    readonly listEngines: () => Promise<CodingRuntimeStatus>
+    readonly createSession: (input: CreateCodingSessionInput) => Promise<CodingSession>
+    readonly getSession: (sessionId: string) => Promise<CodingSession>
+    readonly listFiles: (input: CodingListFilesInput) => Promise<readonly CodingFileEntry[]>
+    readonly readFile: (input: CodingReadFileInput) => Promise<CodingReadFileResult>
+    readonly fileStatus: (projectId: string) => Promise<CodingFileStatus>
+    readonly streamTurn: (
+      input: CodingTurnInput,
+      onEvent: (event: CodingStreamEvent) => void
+    ) => Promise<CodingStreamController>
+    readonly cancelTurn: (input: CancelCodingTurnInput) => Promise<DeleteResult>
   }
 }
 

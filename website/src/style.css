@@ -206,16 +206,17 @@ p {
 
 h1 {
   margin-bottom: 18px;
-  font-size: clamp(56px, 9vw, 104px);
+  font-size: 104px;
   line-height: 0.9;
   letter-spacing: 0;
 }
 
 h2 {
   margin-bottom: 14px;
-  font-size: clamp(30px, 4.8vw, 54px);
-  line-height: 1.05;
+  font-size: 48px;
+  line-height: 1.08;
   letter-spacing: 0;
+  text-wrap: balance;
 }
 
 h3 {
@@ -324,7 +325,7 @@ p {
 }
 
 .section-heading {
-  width: min(760px, 100%);
+  width: min(920px, 100%);
   margin-bottom: 28px;
 }
 
@@ -979,11 +980,11 @@ p {
   }
 
   h1 {
-    font-size: clamp(48px, 18vw, 76px);
+    font-size: 52px;
   }
 
   h2 {
-    font-size: clamp(28px, 9vw, 42px);
+    font-size: 32px;
   }
 
   .hero-stats,

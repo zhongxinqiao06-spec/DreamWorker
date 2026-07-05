@@ -21,6 +21,9 @@ import type {
   Project,
   ProjectDirectoryCheck,
   ProjectModule,
+  RequirementAnalysisRun,
+  RequirementSourcePreviewResult,
+  RequirementSource,
   RuntimePingResponse,
   SafeModelProvider,
   SaveAgentInput,
@@ -83,6 +86,10 @@ type McpDraft = Omit<SaveMcpServerInput, 'args' | 'secrets'> & {
   argsText: string
   secretsText: string
 }
+type ActiveSubmoduleDetail = {
+  moduleId: ModuleWorkspaceId
+  submoduleId: string
+} | null
 
 type ResourceNoticeTone = 'success' | 'info' | 'error'
 
@@ -699,6 +706,7 @@ export const useAppShellStore = defineStore('app-shell', {
     activePrimary: 'home' as PrimaryNavId,
     activeResourceTab: 'providers' as ResourceTabId,
     activeSubmoduleByModule: {} as Partial<Record<ModuleWorkspaceId, string>>,
+    activeSubmoduleDetail: null as ActiveSubmoduleDetail,
     bootStatus: 'idle' as 'idle' | 'loading' | 'ready' | 'error',
     errorBanner: '',
     runtimePing: createIdleRuntimePingState(),
@@ -716,6 +724,13 @@ export const useAppShellStore = defineStore('app-shell', {
     mcpServers: [] as McpServerConfig[],
     projects: [] as Project[],
     projectModules: [] as ProjectModule[],
+    requirementSources: [] as RequirementSource[],
+    selectedRequirementSourceIds: [] as string[],
+    requirementAnalysisPrompt: '',
+    requirementAnalysisRun: null as RequirementAnalysisRun | null,
+    requirementAnalysisLoading: false,
+    requirementSourcePreview: null as RequirementSourcePreviewResult | null,
+    requirementSourcePreviewLoading: false,
     chatSessions: [] as ChatSession[],
     chatMessages: [] as ChatMessage[],
     chatMessagesBySession: {} as Record<string, ChatMessage[]>,
@@ -825,6 +840,14 @@ export const useAppShellStore = defineStore('app-shell', {
         module?.submodules[0]
       )
     },
+    requirementAnalysisSubmodule: (state) =>
+      state.projectModules
+        .find((module) => module.moduleId === 'product')
+        ?.submodules.find((submodule) => submodule.submoduleId === 'requirement_analysis'),
+    selectedRequirementSources: (state): RequirementSource[] =>
+      state.requirementSources.filter((source) =>
+        state.selectedRequirementSourceIds.includes(source.sourceId)
+      ),
     activeChatSession: (state): ChatSession | undefined =>
       state.chatSessions.find((session) => session.sessionId === state.activeChatSessionId) ??
       state.chatSessions[0],
@@ -963,6 +986,17 @@ export const useAppShellStore = defineStore('app-shell', {
     async loadWorkspace(): Promise<void> {
       this.bootStatus = 'loading'
       this.errorBanner = ''
+      if (!('dreamworker' in window) || !window.dreamworker) {
+        this.runtimePing = {
+          status: 'error',
+          headline: '浏览器预览模式',
+          detail: '当前页面未运行在 Electron Shell 内，已跳过 typed preload 调用。',
+          traceId: 'preview',
+          errorCode: 'PREVIEW_ONLY'
+        }
+        this.bootStatus = 'ready'
+        return
+      }
       try {
         await this.checkRuntimePing()
         const [
@@ -1041,6 +1075,11 @@ export const useAppShellStore = defineStore('app-shell', {
       this.activePrimary = id
       if (isModuleWorkspace(id)) {
         this.ensureActiveSubmodule(id)
+        if (this.activeSubmoduleDetail?.moduleId !== id) {
+          this.activeSubmoduleDetail = null
+        }
+      } else {
+        this.activeSubmoduleDetail = null
       }
       this.commandOpen = false
     },
@@ -1560,6 +1599,13 @@ export const useAppShellStore = defineStore('app-shell', {
     async selectProject(projectId: string): Promise<void> {
       this.activeProjectId = projectId
       this.activeProjectDirectoryCheck = null
+      this.activeSubmoduleDetail = null
+      this.requirementSources = []
+      this.selectedRequirementSourceIds = []
+      this.requirementAnalysisPrompt = ''
+      this.requirementAnalysisRun = null
+      this.requirementSourcePreview = null
+      this.requirementSourcePreviewLoading = false
       await this.loadProjectModules(projectId)
       this.syncProjectDraft()
     },
@@ -1591,6 +1637,7 @@ export const useAppShellStore = defineStore('app-shell', {
     async loadProjectModules(projectId: string): Promise<void> {
       if (!projectId) {
         this.projectModules = []
+        this.activeSubmoduleDetail = null
         return
       }
       this.projectModules = [...(await window.dreamworker.projects.listProjectModules(projectId))]
@@ -1598,6 +1645,146 @@ export const useAppShellStore = defineStore('app-shell', {
       this.ensureActiveSubmodule('product')
       this.ensureActiveSubmodule('development')
       this.ensureActiveSubmodule('sales')
+      if (this.activeSubmoduleDetail) {
+        const detailModule = this.projectModules.find(
+          (module) => module.moduleId === this.activeSubmoduleDetail?.moduleId
+        )
+        const detailStillExists = detailModule?.submodules.some(
+          (submodule) => submodule.submoduleId === this.activeSubmoduleDetail?.submoduleId
+        )
+        if (!detailStillExists) {
+          this.activeSubmoduleDetail = null
+        }
+      }
+    },
+    async loadRequirementSources(): Promise<void> {
+      if (!this.activeProjectId) {
+        this.requirementSources = []
+        this.selectedRequirementSourceIds = []
+        return
+      }
+      try {
+        const result = await window.dreamworker.projects.listRequirementSources(this.activeProjectId)
+        this.requirementSources = [...result.sources]
+        const validIds = new Set(this.requirementSources.map((source) => source.sourceId))
+        const selected = this.selectedRequirementSourceIds.filter((sourceId) =>
+          validIds.has(sourceId)
+        )
+        this.selectedRequirementSourceIds =
+          selected.length > 0 ? selected : this.requirementSources.map((source) => source.sourceId)
+        if (
+          this.requirementSourcePreview &&
+          !validIds.has(this.requirementSourcePreview.source.sourceId)
+        ) {
+          this.requirementSourcePreview = null
+        }
+      } catch (error) {
+        this.showResourceFailure(error, '需求来源刷新失败')
+      }
+    },
+    async selectRequirementSourceForPreview(sourceId: string): Promise<void> {
+      if (!this.selectedRequirementSourceIds.includes(sourceId)) {
+        this.selectedRequirementSourceIds = [...this.selectedRequirementSourceIds, sourceId]
+      }
+      await this.previewRequirementSource(sourceId)
+    },
+    toggleRequirementSource(sourceId: string): void {
+      if (this.selectedRequirementSourceIds.includes(sourceId)) {
+        if (this.selectedRequirementSourceIds.length === 1) {
+          this.showResourceNotice('至少保留一个需求来源', 'info')
+          return
+        }
+        this.selectedRequirementSourceIds = this.selectedRequirementSourceIds.filter(
+          (item) => item !== sourceId
+        )
+        return
+      }
+      this.selectedRequirementSourceIds = [...this.selectedRequirementSourceIds, sourceId]
+    },
+    async previewRequirementSource(sourceId: string): Promise<void> {
+      if (!this.activeProjectId) {
+        this.showResourceNotice('请先选择项目', 'error')
+        return
+      }
+      if (!sourceId) {
+        return
+      }
+      this.requirementSourcePreviewLoading = true
+      try {
+        const preview = await window.dreamworker.projects.previewRequirementSource({
+          projectId: this.activeProjectId,
+          sourceId
+        })
+        this.requirementSourcePreview = preview
+        this.requirementSources = this.requirementSources.map((source) =>
+          source.sourceId === preview.source.sourceId ? preview.source : source
+        )
+      } catch (error) {
+        this.showResourceFailure(error, '需求来源解析预览失败')
+      } finally {
+        this.requirementSourcePreviewLoading = false
+      }
+    },
+    async importRequirementFiles(): Promise<void> {
+      if (!this.activeProjectId) {
+        this.showResourceNotice('请先选择项目', 'error')
+        return
+      }
+      try {
+        this.showResourceNotice('正在导入需求文件...', 'info')
+        const result = await window.dreamworker.projects.importRequirementFiles(this.activeProjectId)
+        if (!result) {
+          return
+        }
+        const importedIds = new Set(result.sources.map((source) => source.sourceId))
+        await this.loadRequirementSources()
+        this.selectedRequirementSourceIds = this.requirementSources
+          .filter(
+            (source) =>
+              this.selectedRequirementSourceIds.includes(source.sourceId) ||
+              importedIds.has(source.sourceId)
+          )
+          .map((source) => source.sourceId)
+        const firstImported = this.requirementSources.find((source) =>
+          importedIds.has(source.sourceId)
+        )
+        if (firstImported) {
+          await this.previewRequirementSource(firstImported.sourceId)
+        }
+        this.showResourceNotice(result.message || '需求文件已导入')
+      } catch (error) {
+        this.showResourceFailure(error, '需求文件导入失败')
+      }
+    },
+    async runRequirementAnalysis(): Promise<void> {
+      if (!this.activeProjectId) {
+        this.showResourceNotice('请先选择项目', 'error')
+        return
+      }
+      if (this.requirementSources.length === 0) {
+        await this.loadRequirementSources()
+      }
+      if (this.selectedRequirementSourceIds.length === 0) {
+        this.showResourceNotice('请先导入或选择需求来源', 'error')
+        return
+      }
+      this.requirementAnalysisLoading = true
+      try {
+        this.showResourceNotice('正在运行需求分析...', 'info')
+        const run = await window.dreamworker.projects.runRequirementAnalysis({
+          projectId: this.activeProjectId,
+          sourceIds: this.selectedRequirementSourceIds,
+          prompt: this.requirementAnalysisPrompt.trim()
+        })
+        this.requirementAnalysisRun = run
+        this.selectedRequirementSourceIds = run.sources.map((source) => source.sourceId)
+        await this.loadProjectModules(this.activeProjectId)
+        this.showResourceNotice(`需求分析已完成：${run.featureCount} 个功能项`)
+      } catch (error) {
+        this.showResourceFailure(error, '需求分析运行失败')
+      } finally {
+        this.requirementAnalysisLoading = false
+      }
     },
     ensureActiveSubmodule(moduleId: ModuleWorkspaceId): void {
       const module = this.projectModules.find((item) => item.moduleId === moduleId)
@@ -1614,6 +1801,26 @@ export const useAppShellStore = defineStore('app-shell', {
     },
     selectSubmodule(moduleId: ModuleWorkspaceId, submoduleId: string): void {
       this.activeSubmoduleByModule[moduleId] = submoduleId
+      if (
+        this.activeSubmoduleDetail?.moduleId === moduleId &&
+        this.activeSubmoduleDetail.submoduleId !== submoduleId
+      ) {
+        this.activeSubmoduleDetail = null
+      }
+    },
+    enterSubmodule(moduleId: ModuleWorkspaceId, submoduleId: string): void {
+      this.selectSubmodule(moduleId, submoduleId)
+      if (
+        (moduleId === 'product' && submoduleId === 'requirement_analysis') ||
+        (moduleId === 'development' && submoduleId === 'coding_agent')
+      ) {
+        this.activeSubmoduleDetail = { moduleId, submoduleId }
+        return
+      }
+      this.activeSubmoduleDetail = null
+    },
+    leaveSubmoduleDetail(): void {
+      this.activeSubmoduleDetail = null
     },
     async createProject(): Promise<void> {
       const project = await window.dreamworker.projects.createProject({

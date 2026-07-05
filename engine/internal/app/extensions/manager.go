@@ -207,7 +207,7 @@ func (m *NodeExtensionManager) nineRouterSpec() ExtensionSpec {
 			SystemPreset:  true,
 			AllowDeletion: false,
 		},
-		Capabilities: []string{"model_gateway", "openai_compatible_chat", "model_discovery", "streaming"},
+		Capabilities: []string{"model_gateway", "openai_compatible_chat", "model_discovery", "streaming", "vision", "image_generation"},
 		Security: ExtensionSecuritySpec{
 			RiskLevel:       "medium",
 			AllowedHosts:    []string{"localhost", "127.0.0.1", "::1"},
@@ -732,7 +732,23 @@ func (m *NodeExtensionManager) healthCheck(ctx context.Context, extensionID stri
 }
 
 func (m *NodeExtensionManager) fetchModels(ctx context.Context, spec ExtensionSpec, apiKey string) ([]string, string, string) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, joinURL(spec.Health.BaseURL, spec.Health.ModelsPath), nil)
+	models, code, message := m.fetchModelsAtPath(ctx, spec, apiKey, spec.Health.ModelsPath)
+	if code != "" {
+		return nil, code, message
+	}
+	if spec.ExtensionID == NineRouterExtensionID {
+		imageModels, imageCode, imageMessage := m.fetchModelsAtPath(ctx, spec, apiKey, "/models/image")
+		if imageCode != "" && len(models) == 0 {
+			return nil, imageCode, imageMessage
+		}
+		models = appendUniqueStrings(models, imageModels...)
+	}
+	sort.Strings(models)
+	return models, "", ""
+}
+
+func (m *NodeExtensionManager) fetchModelsAtPath(ctx context.Context, spec ExtensionSpec, apiKey string, modelPath string) ([]string, string, string) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, joinURL(spec.Health.BaseURL, modelPath), nil)
 	if err != nil {
 		return nil, "EXTENSION_MODELS_REQUEST_INVALID", "模型刷新请求无效。"
 	}
@@ -770,6 +786,20 @@ func (m *NodeExtensionManager) fetchModels(ctx context.Context, spec ExtensionSp
 		}
 	}
 	return models, "", ""
+}
+
+func appendUniqueStrings(values []string, extras ...string) []string {
+	seen := make(map[string]bool, len(values)+len(extras))
+	result := make([]string, 0, len(values)+len(extras))
+	for _, value := range append(values, extras...) {
+		item := strings.TrimSpace(value)
+		if item == "" || seen[item] {
+			continue
+		}
+		seen[item] = true
+		result = append(result, item)
+	}
+	return result
 }
 
 func responseErrorMessage(response *http.Response) string {

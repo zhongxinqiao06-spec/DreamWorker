@@ -62,6 +62,63 @@ describe('runtime ipc project directory handlers', () => {
     await expect(handler?.()).resolves.toBeNull()
   })
 
+  it('imports requirement documents through the project requirement picker', async () => {
+    const importResult = {
+      projectId: 'project_001',
+      runId: 'req_001',
+      sources: [],
+      message: '已导入 2 个需求文件。'
+    }
+    const requestEngine = vi.fn().mockResolvedValue(importResult)
+    registerRuntimeIpcHandlers(undefined, requestEngine)
+    electronMock.showOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: ['C:\\input\\requirements.docx', 'C:\\input\\scope.pdf']
+    })
+
+    const handler = electronMock.handlers.get(CHANNELS.projectsImportRequirementFiles)
+    await expect(handler?.(null, { projectId: 'project_001' })).resolves.toEqual(importResult)
+
+    expect(electronMock.showOpenDialog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        properties: ['openFile', 'multiSelections'],
+        filters: [{ name: '需求文件', extensions: ['docx', 'pdf'] }]
+      })
+    )
+    expect(requestEngine).toHaveBeenCalledWith('/projects/requirements/import-files', {
+      method: 'POST',
+      body: {
+        projectId: 'project_001',
+        filePaths: ['C:\\input\\requirements.docx', 'C:\\input\\scope.pdf']
+      }
+    })
+  })
+
+  it('routes requirement source preview to the engine', async () => {
+    const previewResult = {
+      projectId: 'project_001',
+      source: { sourceId: 'src_imported', fileName: 'requirements.docx' },
+      parser: 'mineru',
+      content: '解析文本',
+      charCount: 4,
+      truncated: false,
+      traceId: 'tr_preview',
+      createdAt: '2026-07-01T00:00:00Z'
+    }
+    const requestEngine = vi.fn().mockResolvedValue(previewResult)
+    registerRuntimeIpcHandlers(undefined, requestEngine)
+
+    const handler = electronMock.handlers.get(CHANNELS.projectsPreviewRequirementSource)
+    await expect(
+      handler?.(null, { projectId: 'project_001', sourceId: 'src_imported' })
+    ).resolves.toEqual(previewResult)
+
+    expect(requestEngine).toHaveBeenCalledWith('/projects/requirements/preview-source', {
+      method: 'POST',
+      body: { projectId: 'project_001', sourceId: 'src_imported' }
+    })
+  })
+
   it('opens only http urls through the system external channel', async () => {
     registerRuntimeIpcHandlers()
     electronMock.openExternal.mockResolvedValue(undefined)

@@ -39,7 +39,9 @@ func newPersistentTestStore(t *testing.T, configDir string, agentDir string) *St
 }
 
 type testGateway struct {
-	chunks []ModelStreamChunk
+	chunks        []ModelStreamChunk
+	capture       func([]ChatGatewayMessage)
+	generateImage func(ports.ChatModelProvider, ports.ChatModelProfile, ports.ImageGenerationInput) (ports.ImageGenerationResult, error)
 }
 
 func (gateway testGateway) DiscoverModels(_ context.Context, provider ports.ChatModelProvider) ProviderModelDiscoveryResult {
@@ -50,15 +52,34 @@ func (gateway testGateway) HealthCheck(_ context.Context, _ ports.ChatModelProvi
 	return ProviderHealth{OK: true, Status: "connected", Message: "test gateway ready", StreamingVerified: true}
 }
 
-func (gateway testGateway) StreamChat(_ context.Context, _ ports.ChatModelProvider, _ ports.ChatModelProfile, _ []ChatGatewayMessage) <-chan ModelStreamChunk {
+func (gateway testGateway) StreamChat(_ context.Context, _ ports.ChatModelProvider, _ ports.ChatModelProfile, messages []ChatGatewayMessage) <-chan ModelStreamChunk {
 	out := make(chan ModelStreamChunk, len(gateway.chunks))
 	go func() {
 		defer close(out)
+		if gateway.capture != nil {
+			gateway.capture(messages)
+		}
 		for _, chunk := range gateway.chunks {
 			out <- chunk
 		}
 	}()
 	return out
+}
+
+func (gateway testGateway) GenerateImage(_ context.Context, provider ports.ChatModelProvider, profile ports.ChatModelProfile, input ports.ImageGenerationInput) (ports.ImageGenerationResult, error) {
+	if gateway.generateImage != nil {
+		return gateway.generateImage(provider, profile, input)
+	}
+	return ports.ImageGenerationResult{
+		ProviderID: provider.ProviderID,
+		Model:      profile.Model,
+		Images: []ports.GeneratedImage{{
+			DataURL:       "data:image/png;base64,iVBORw0KGgo=",
+			MimeType:      "image/png",
+			RevisedPrompt: input.Prompt,
+		}},
+		LatencyMS: 1,
+	}, nil
 }
 
 func TestProvidersNeverExposeRawAPIKey(t *testing.T) {
@@ -414,8 +435,12 @@ func TestProjectModulesCarryProjectID(t *testing.T) {
 		if module.ProjectID != project.ProjectID {
 			t.Fatalf("module %s has project id %q, want %q", module.ModuleID, module.ProjectID, project.ProjectID)
 		}
-		if len(module.Submodules) != 4 {
-			t.Fatalf("module %s expected four submodules, got %d", module.ModuleID, len(module.Submodules))
+		expectedSubmodules := 4
+		if module.ModuleID == "development" {
+			expectedSubmodules = 5
+		}
+		if len(module.Submodules) != expectedSubmodules {
+			t.Fatalf("module %s expected %d submodules, got %d", module.ModuleID, expectedSubmodules, len(module.Submodules))
 		}
 		for _, submodule := range module.Submodules {
 			if submodule.ProjectID != project.ProjectID {
@@ -887,6 +912,121 @@ func TestChatStreamEmitsTokenDeltasAndCompletion(t *testing.T) {
 	}
 	if completed.Session.MessageCount != 2 {
 		t.Fatalf("expected persisted user and assistant messages, got %#v", completed.Session)
+	}
+}
+
+func TestChatStreamForwardsImagePartsToModelGateway(t *testing.T) {
+	captured := make(chan []ChatGatewayMessage, 1)
+	store := NewStore(
+		WithClock(func() string { return "2026-07-01T00:00:00Z" }),
+		WithTraceID(func() string { return "tr_image" }),
+		WithModelGateway(testGateway{
+			chunks: []ModelStreamChunk{{Delta: "vision ok", FinishReason: "stop"}},
+			capture: func(messages []ChatGatewayMessage) {
+				captured <- append([]ChatGatewayMessage{}, messages...)
+			},
+		}),
+	)
+	session, appErr := store.CreateChatSession(CreateChatSessionInput{
+		Title:          "vision",
+		AgentID:        "agent_evaluator",
+		ModelProfileID: "profile_stub",
+	})
+	if appErr != nil {
+		t.Fatalf("create session: %v", appErr)
+	}
+
+	events, appErr := store.StreamChatMessage(context.Background(), SendChatMessageInput{
+		SessionID: session.SessionID,
+		Content:   "describe this image",
+		Parts: []ChatMessagePart{{
+			Type:     "image",
+			DataURL:  "data:image/png;base64,iVBORw0KGgo=",
+			MimeType: "image/png",
+			FileName: "sample.png",
+		}},
+		StreamID: "stream_image",
+	})
+	if appErr != nil {
+		t.Fatalf("stream image message: %v", appErr)
+	}
+	for range events {
+	}
+	var messages []ChatGatewayMessage
+	select {
+	case messages = <-captured:
+	default:
+		t.Fatal("expected gateway messages to be captured")
+	}
+	var userMessage ChatGatewayMessage
+	for _, message := range messages {
+		if message.Role == "user" {
+			userMessage = message
+		}
+	}
+	if userMessage.Role == "" {
+		t.Fatalf("expected user message in gateway context, got %#v", messages)
+	}
+	if len(userMessage.Parts) != 2 {
+		t.Fatalf("expected text and image parts, got %#v", userMessage.Parts)
+	}
+	if userMessage.Parts[1].ImageURL == nil || !strings.HasPrefix(userMessage.Parts[1].ImageURL.URL, "data:image/png;base64,") {
+		t.Fatalf("expected image data URL part, got %#v", userMessage.Parts[1])
+	}
+	persisted := store.Messages[session.SessionID][0]
+	if len(persisted.Parts) != 2 || persisted.Parts[1].FileName != "sample.png" {
+		t.Fatalf("expected persisted image part, got %#v", persisted.Parts)
+	}
+}
+
+func TestGenerateChatImagePersistsAssistantImagePart(t *testing.T) {
+	store := NewStore(
+		WithClock(func() string { return "2026-07-01T00:00:00Z" }),
+		WithTraceID(func() string { return "tr_generate_image" }),
+		WithModelGateway(testGateway{
+			generateImage: func(provider ports.ChatModelProvider, profile ports.ChatModelProfile, input ports.ImageGenerationInput) (ports.ImageGenerationResult, error) {
+				return ports.ImageGenerationResult{
+					ProviderID: provider.ProviderID,
+					Model:      profile.Model,
+					Images: []ports.GeneratedImage{{
+						DataURL:       "data:image/png;base64,iVBORw0KGgo=",
+						MimeType:      "image/png",
+						RevisedPrompt: input.Prompt,
+					}},
+					LatencyMS: 12,
+				}, nil
+			},
+		}),
+	)
+	session, appErr := store.CreateChatSession(CreateChatSessionInput{
+		Title:          "image generation",
+		AgentID:        "agent_evaluator",
+		ModelProfileID: "profile_stub",
+	})
+	if appErr != nil {
+		t.Fatalf("create session: %v", appErr)
+	}
+
+	turn, appErr := store.GenerateChatImage(context.Background(), GenerateChatImageInput{
+		SessionID: session.SessionID,
+		Prompt:    "生成机会雷达插画",
+		Size:      "512x512",
+	})
+	if appErr != nil {
+		t.Fatalf("generate image: %v", appErr)
+	}
+	if turn.Session.MessageCount != 2 || len(turn.Messages) != 2 {
+		t.Fatalf("expected two persisted messages, got %#v", turn.Messages)
+	}
+	assistant := turn.Messages[1]
+	if assistant.Status != "completed" || assistant.FinishReason != "stop" {
+		t.Fatalf("expected completed assistant image message, got %#v", assistant)
+	}
+	if len(assistant.Parts) != 1 || !strings.HasPrefix(assistant.Parts[0].DataURL, "data:image/png;base64,") {
+		t.Fatalf("expected assistant image part, got %#v", assistant.Parts)
+	}
+	if turn.AuditSummary.ErrorCode != "" || turn.AuditSummary.ProviderID == "" {
+		t.Fatalf("expected successful audit summary, got %#v", turn.AuditSummary)
 	}
 }
 

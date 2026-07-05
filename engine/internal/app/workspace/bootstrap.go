@@ -5,8 +5,10 @@ import (
 	"sync"
 
 	"github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/app/chat"
+	"github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/app/coding"
 	"github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/app/extensions"
 	"github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/app/projects"
+	"github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/app/requirements"
 	"github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/app/resources"
 )
 
@@ -18,6 +20,7 @@ var WithTraceID = resources.WithTraceID
 var WithAgentDir = resources.WithAgentDir
 var WithConfigDir = resources.WithConfigDir
 var WithModelGateway = resources.WithModelGateway
+var WithDocumentParser = resources.WithDocumentParser
 var NewLocalModelGateway = resources.NewLocalModelGateway
 var DefaultConfigDir = resources.DefaultConfigDir
 
@@ -25,7 +28,9 @@ type Store struct {
 	*resources.Store
 
 	projectStore     *projects.Store
+	requirementStore *requirements.Store
 	chatStore        *chat.Store
+	codingStore      *coding.Store
 	extensionManager *extensions.NodeExtensionManager
 
 	mu       *sync.Mutex
@@ -46,7 +51,9 @@ func NewStore(options ...StoreOption) *Store {
 	store := &Store{
 		Store:            state,
 		projectStore:     projects.NewStore(state),
+		requirementStore: requirements.NewStore(state),
 		chatStore:        chat.NewStore(state),
+		codingStore:      coding.NewStore(state),
 		extensionManager: extensions.NewNodeExtensionManager(extensionOptions...),
 		mu:               &state.Mu,
 		sessions:         state.Sessions,

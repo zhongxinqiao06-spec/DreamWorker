@@ -388,26 +388,45 @@ type UpdateChatSessionInput struct {
 }
 
 type ChatMessage struct {
-	MessageID      string          `json:"messageId"`
-	AttemptID      string          `json:"attemptId"`
-	SessionID      string          `json:"sessionId"`
-	Role           string          `json:"role"`
-	Content        string          `json:"content"`
-	Status         string          `json:"status"`
-	ProviderID     string          `json:"providerId"`
-	Model          string          `json:"model"`
-	Usage          *ChatModelUsage `json:"usage"`
-	FinishReason   string          `json:"finishReason"`
-	RuntimeSummary string          `json:"runtimeSummary"`
-	TraceID        string          `json:"trace_id"`
-	CreatedAt      string          `json:"createdAt"`
+	MessageID      string            `json:"messageId"`
+	AttemptID      string            `json:"attemptId"`
+	SessionID      string            `json:"sessionId"`
+	Role           string            `json:"role"`
+	Content        string            `json:"content"`
+	Parts          []ChatMessagePart `json:"parts,omitempty"`
+	Status         string            `json:"status"`
+	ProviderID     string            `json:"providerId"`
+	Model          string            `json:"model"`
+	Usage          *ChatModelUsage   `json:"usage"`
+	FinishReason   string            `json:"finishReason"`
+	RuntimeSummary string            `json:"runtimeSummary"`
+	TraceID        string            `json:"trace_id"`
+	CreatedAt      string            `json:"createdAt"`
+}
+
+type ChatMessagePart struct {
+	Type          string `json:"type"`
+	Text          string `json:"text,omitempty"`
+	DataURL       string `json:"dataUrl,omitempty"`
+	URL           string `json:"url,omitempty"`
+	MimeType      string `json:"mimeType,omitempty"`
+	FileName      string `json:"fileName,omitempty"`
+	Detail        string `json:"detail,omitempty"`
+	RevisedPrompt string `json:"revisedPrompt,omitempty"`
 }
 
 type SendChatMessageInput struct {
-	SessionID        string `json:"sessionId"`
-	Content          string `json:"content"`
-	StreamID         string `json:"streamId"`
-	RetryOfMessageID string `json:"retryOfMessageId"`
+	SessionID        string            `json:"sessionId"`
+	Content          string            `json:"content"`
+	Parts            []ChatMessagePart `json:"parts,omitempty"`
+	StreamID         string            `json:"streamId"`
+	RetryOfMessageID string            `json:"retryOfMessageId"`
+}
+
+type GenerateChatImageInput struct {
+	SessionID string `json:"sessionId"`
+	Prompt    string `json:"prompt"`
+	Size      string `json:"size"`
 }
 
 type CancelChatStreamInput struct {

@@ -7,6 +7,7 @@ import {
   Boxes,
   BrainCircuit,
   CheckCircle2,
+  Download,
   Gauge,
   MessageSquareText,
   Network,
@@ -25,6 +26,8 @@ type ChartInstance = ReturnType<typeof echarts.init>
 const PLANNED_AGENT_COUNT = 12
 const PLANNED_SKILL_COUNT = 12
 const PLANNED_TOOL_COUNT = 20
+const WINDOWS_PREVIEW_DOWNLOAD_URL =
+  'https://github.com/zhongxinqiao06-spec/DreamWorker/releases/download/v0.1.0-preview.1/DreamWorker.Setup.0.1.0.exe'
 
 const appShell = useAppShellStore()
 const tokenChartRef = ref<HTMLDivElement | null>(null)
@@ -471,6 +474,18 @@ function openProviders(): void {
   appShell.setPrimary('resources')
   appShell.setResourceTab('providers')
 }
+
+async function downloadWindowsPreview(): Promise<void> {
+  try {
+    const opened = await window.dreamworker?.system.openExternal(WINDOWS_PREVIEW_DOWNLOAD_URL)
+    if (opened?.ok) {
+      return
+    }
+  } catch {
+    // Browser preview mode does not have Electron's typed preload bridge.
+  }
+  window.open(WINDOWS_PREVIEW_DOWNLOAD_URL, '_blank', 'noopener,noreferrer')
+}
 </script>
 
 <template>
@@ -486,6 +501,10 @@ function openProviders(): void {
           <button class="primary-button" type="button" @click="openPrimary('explore')">
             <Play :size="16" aria-hidden="true" />
             启动项目孵化
+          </button>
+          <button class="icon-text-button" type="button" @click="downloadWindowsPreview">
+            <Download :size="16" aria-hidden="true" />
+            Windows 体验版
           </button>
           <button class="icon-text-button" type="button" @click="openProviders">
             <Route :size="16" aria-hidden="true" />

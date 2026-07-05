@@ -2,8 +2,10 @@ import { dialog, ipcMain, shell } from 'electron'
 import {
   CHANNELS,
   type ChatStreamEvent,
+  type CodingStreamEvent,
   type ProjectDirectoryCheck,
   type ProjectLocalDirectoryActionResult,
+  type RequirementImportResult,
   type RuntimePingResponse
 } from '../shared/dreamworker-api'
 import { openExternalHttpUrl } from './external-url'
@@ -25,7 +27,7 @@ export type EngineStreamProvider = (
     readonly body: unknown
     readonly streamId: string
   },
-  onEvent: (event: ChatStreamEvent) => void
+  onEvent: (event: ChatStreamEvent | CodingStreamEvent) => void
 ) => Promise<{ readonly streamId: string }>
 
 type EngineRoute = {
@@ -112,12 +114,33 @@ const ENGINE_ROUTES: readonly EngineRoute[] = [
     path: '/projects/modules/update-config',
     method: 'POST'
   },
+  {
+    channel: CHANNELS.projectsListRequirementSources,
+    path: '/projects/requirements/sources',
+    method: 'POST'
+  },
+  {
+    channel: CHANNELS.projectsPreviewRequirementSource,
+    path: '/projects/requirements/preview-source',
+    method: 'POST'
+  },
+  {
+    channel: CHANNELS.projectsRunRequirementAnalysis,
+    path: '/projects/requirements/run',
+    method: 'POST'
+  },
   { channel: CHANNELS.chatListSessions, path: '/chat/sessions', method: 'GET' },
   { channel: CHANNELS.chatCreateSession, path: '/chat/sessions/create', method: 'POST' },
   { channel: CHANNELS.chatUpdateSession, path: '/chat/sessions/update', method: 'POST' },
   { channel: CHANNELS.chatGetMessages, path: '/chat/messages', method: 'POST' },
   { channel: CHANNELS.chatSendMessage, path: '/chat/messages/send', method: 'POST' },
-  { channel: CHANNELS.chatDeleteSession, path: '/chat/sessions/delete', method: 'POST' }
+  { channel: CHANNELS.chatDeleteSession, path: '/chat/sessions/delete', method: 'POST' },
+  { channel: CHANNELS.codingListEngines, path: '/coding/engines', method: 'GET' },
+  { channel: CHANNELS.codingCreateSession, path: '/coding/sessions/create', method: 'POST' },
+  { channel: CHANNELS.codingGetSession, path: '/coding/sessions/get', method: 'POST' },
+  { channel: CHANNELS.codingListFiles, path: '/coding/files/list', method: 'POST' },
+  { channel: CHANNELS.codingReadFile, path: '/coding/files/read', method: 'POST' },
+  { channel: CHANNELS.codingFileStatus, path: '/coding/files/status', method: 'POST' }
 ]
 
 export function registerRuntimeIpcHandlers(
@@ -173,6 +196,26 @@ export function registerRuntimeIpcHandlers(
     } satisfies ProjectLocalDirectoryActionResult
   })
 
+  ipcMain.handle(CHANNELS.projectsImportRequirementFiles, async (_event, payload: unknown) => {
+    if (!engineRequestProvider) {
+      throw new Error('Go Engine is not connected.')
+    }
+    const projectId =
+      isRecord(payload) && typeof payload.projectId === 'string' ? payload.projectId : ''
+    const result = await dialog.showOpenDialog({
+      title: '导入需求文件',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: '需求文件', extensions: ['docx', 'pdf'] }]
+    })
+    if (result.canceled || result.filePaths.length === 0) {
+      return null
+    }
+    return engineRequestProvider<RequirementImportResult>('/projects/requirements/import-files', {
+      method: 'POST',
+      body: { projectId, filePaths: result.filePaths }
+    })
+  })
+
   for (const route of ENGINE_ROUTES) {
     ipcMain.handle(route.channel, (_event, payload: unknown) => {
       if (!engineRequestProvider) {
@@ -209,6 +252,30 @@ export function registerRuntimeIpcHandlers(
       engineStreamCancelProvider?.(payload.streamId)
     }
     return engineRequestProvider('/chat/messages/cancel', { method: 'POST', body: payload ?? {} })
+  })
+
+  ipcMain.handle(CHANNELS.codingStartTurn, async (event, payload: unknown) => {
+    if (!engineStreamProvider || !isRecord(payload) || typeof payload.streamId !== 'string') {
+      throw new Error('Go Engine streaming is not available.')
+    }
+    const streamId = payload.streamId
+    return engineStreamProvider(
+      '/coding/turns/stream',
+      { body: payload, streamId },
+      (streamEvent) => {
+        event.sender.send(CHANNELS.codingStreamEvent, streamEvent)
+      }
+    )
+  })
+
+  ipcMain.handle(CHANNELS.codingCancelTurn, (_event, payload: unknown) => {
+    if (!engineRequestProvider) {
+      throw new Error('Go Engine is not connected.')
+    }
+    if (isRecord(payload) && typeof payload.streamId === 'string') {
+      engineStreamCancelProvider?.(payload.streamId)
+    }
+    return engineRequestProvider('/coding/turns/cancel', { method: 'POST', body: payload ?? {} })
   })
 }
 

@@ -17,7 +17,8 @@ describe('preload typed API contract', () => {
       'tools',
       'mcp',
       'projects',
-      'chat'
+      'chat',
+      'coding'
     ])
   })
 
@@ -114,6 +115,17 @@ describe('preload typed API contract', () => {
     await api.projects.initializeLocalDirectory('project_001')
     await api.projects.openLocalDirectory('project_001')
     await api.projects.exportProjectManifest('project_001')
+    await api.projects.importRequirementFiles('project_001')
+    await api.projects.listRequirementSources('project_001')
+    await api.projects.previewRequirementSource({
+      projectId: 'project_001',
+      sourceId: 'src_imported'
+    })
+    await api.projects.runRequirementAnalysis({
+      projectId: 'project_001',
+      sourceIds: ['project_description'],
+      prompt: '优先首版功能'
+    })
 
     expect(invoke).toHaveBeenCalledWith(CHANNELS.projectsPickLocalDirectory)
     expect(invoke).toHaveBeenCalledWith(CHANNELS.projectsValidateLocalDirectory, {
@@ -127,6 +139,21 @@ describe('preload typed API contract', () => {
     })
     expect(invoke).toHaveBeenCalledWith(CHANNELS.projectsExportManifest, {
       projectId: 'project_001'
+    })
+    expect(invoke).toHaveBeenCalledWith(CHANNELS.projectsImportRequirementFiles, {
+      projectId: 'project_001'
+    })
+    expect(invoke).toHaveBeenCalledWith(CHANNELS.projectsListRequirementSources, {
+      projectId: 'project_001'
+    })
+    expect(invoke).toHaveBeenCalledWith(CHANNELS.projectsPreviewRequirementSource, {
+      projectId: 'project_001',
+      sourceId: 'src_imported'
+    })
+    expect(invoke).toHaveBeenCalledWith(CHANNELS.projectsRunRequirementAnalysis, {
+      projectId: 'project_001',
+      sourceIds: ['project_description'],
+      prompt: '优先首版功能'
     })
   })
 

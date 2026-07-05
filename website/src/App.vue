@@ -33,7 +33,7 @@ import {
 
 type IconComponent = Component
 const releaseTag = 'v0.1.0-preview.1'
-const windowsDownloadUrl = `https://github.com/zhongxinqiao06-spec/DreamWorker/releases/download/${releaseTag}/DreamWorker%20Setup%200.1.0.exe`
+const windowsDownloadUrl = `https://github.com/zhongxinqiao06-spec/DreamWorker/releases/download/${releaseTag}/DreamWorker.Setup.0.1.0.exe`
 
 const navItems = [
   { label: '定位', href: '#position' },

@@ -4,7 +4,10 @@ go 1.24.0
 
 toolchain go1.24.4
 
-require modernc.org/sqlite v1.45.0
+require (
+	github.com/opendatalab/MinerU-Ecosystem/sdk/go v0.2.0
+	modernc.org/sqlite v1.45.0
+)
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect

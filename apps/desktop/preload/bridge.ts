@@ -8,6 +8,19 @@ import {
   type ChatStreamEvent,
   type ChatStreamStartResult,
   type ChatTurnResult,
+  type CancelCodingTurnInput,
+  type CodingFileEntry,
+  type CodingFileStatus,
+  type CodingListFilesInput,
+  type CodingReadFileInput,
+  type CodingReadFileResult,
+  type CodingRuntimeStatus,
+  type CodingSession,
+  type CodingStreamController,
+  type CodingStreamEvent,
+  type CodingStreamStartResult,
+  type CodingTurnInput,
+  type CreateCodingSessionInput,
   type CreateChatSessionInput,
   type CreateProjectInput,
   type DeleteProjectInput,
@@ -30,7 +43,13 @@ import {
   type ProjectManifestExport,
   type ProjectModule,
   type ProjectModuleId,
+  type PreviewRequirementSourceInput,
+  type RequirementAnalysisRun,
+  type RequirementImportResult,
+  type RequirementSourcePreviewResult,
+  type RequirementSourcesResult,
   type RuntimePingResponse,
+  type RunRequirementAnalysisInput,
   type SafeModelProvider,
   type SaveAgentInput,
   type SaveMcpServerInput,
@@ -205,7 +224,23 @@ export function createDreamWorkerApi(invoke: IpcInvoke, listen?: IpcListen): Dre
       getProjectModule: (projectId: string, moduleId: ProjectModuleId) =>
         invokeTyped<ProjectModule>(invoke, CHANNELS.projectsGetModule, { projectId, moduleId }),
       updateProjectModuleConfig: (input: UpdateProjectModuleConfigInput) =>
-        invokeTyped<ProjectModule>(invoke, CHANNELS.projectsUpdateModuleConfig, input)
+        invokeTyped<ProjectModule>(invoke, CHANNELS.projectsUpdateModuleConfig, input),
+      importRequirementFiles: (projectId: string) =>
+        invokeTyped<RequirementImportResult | null>(invoke, CHANNELS.projectsImportRequirementFiles, {
+          projectId
+        }),
+      listRequirementSources: (projectId: string) =>
+        invokeTyped<RequirementSourcesResult>(invoke, CHANNELS.projectsListRequirementSources, {
+          projectId
+        }),
+      previewRequirementSource: (input: PreviewRequirementSourceInput) =>
+        invokeTyped<RequirementSourcePreviewResult>(
+          invoke,
+          CHANNELS.projectsPreviewRequirementSource,
+          input
+        ),
+      runRequirementAnalysis: (input: RunRequirementAnalysisInput) =>
+        invokeTyped<RequirementAnalysisRun>(invoke, CHANNELS.projectsRunRequirementAnalysis, input)
     },
     chat: {
       listSessions: () => invokeTyped<readonly ChatSession[]>(invoke, CHANNELS.chatListSessions),
@@ -281,6 +316,67 @@ export function createDreamWorkerApi(invoke: IpcInvoke, listen?: IpcListen): Dre
         invokeTyped<DeleteResult>(invoke, CHANNELS.chatCancelStream, input),
       deleteSession: (sessionId: string) =>
         invokeTyped<DeleteResult>(invoke, CHANNELS.chatDeleteSession, { sessionId })
+    },
+    coding: {
+      listEngines: () => invokeTyped<CodingRuntimeStatus>(invoke, CHANNELS.codingListEngines),
+      createSession: (input: CreateCodingSessionInput) =>
+        invokeTyped<CodingSession>(invoke, CHANNELS.codingCreateSession, input),
+      getSession: (sessionId: string) =>
+        invokeTyped<CodingSession>(invoke, CHANNELS.codingGetSession, { sessionId }),
+      listFiles: (input: CodingListFilesInput) =>
+        invokeTyped<readonly CodingFileEntry[]>(invoke, CHANNELS.codingListFiles, input),
+      readFile: (input: CodingReadFileInput) =>
+        invokeTyped<CodingReadFileResult>(invoke, CHANNELS.codingReadFile, input),
+      fileStatus: (projectId: string) =>
+        invokeTyped<CodingFileStatus>(invoke, CHANNELS.codingFileStatus, { projectId }),
+      streamTurn: async (
+        input: CodingTurnInput,
+        onEvent: (event: CodingStreamEvent) => void
+      ): Promise<CodingStreamController> => {
+        if (!listen) {
+          throw new Error('Coding Agent streaming requires the Electron preload listener.')
+        }
+        const streamId = input.streamId ?? createClientStreamId()
+        let unsubscribe = (): void => undefined
+        unsubscribe = listen(CHANNELS.codingStreamEvent, (payload) => {
+          const event = payload as CodingStreamEvent
+          if (event.streamId === streamId) {
+            onEvent(event)
+            if (
+              event.type === 'completed' ||
+              event.type === 'error' ||
+              event.type === 'cancelled'
+            ) {
+              unsubscribe()
+            }
+          }
+        })
+        try {
+          const result = await invokeTyped<CodingStreamStartResult>(
+            invoke,
+            CHANNELS.codingStartTurn,
+            { ...input, streamId }
+          )
+          return {
+            streamId: result.streamId,
+            cancel: async () => {
+              unsubscribe()
+              try {
+                await invokeTyped<unknown>(invoke, CHANNELS.codingCancelTurn, {
+                  streamId: result.streamId
+                })
+              } catch {
+                // Coding Agent cancellation is best-effort; the process may already be closed.
+              }
+            }
+          }
+        } catch (error) {
+          unsubscribe()
+          throw error
+        }
+      },
+      cancelTurn: (input: CancelCodingTurnInput) =>
+        invokeTyped<DeleteResult>(invoke, CHANNELS.codingCancelTurn, input)
     }
   }
 }

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -134,6 +135,15 @@ func (Gateway) StreamChat(
 	return streamProviderModel(ctx, provider, profile, messages)
 }
 
+func (Gateway) GenerateImage(
+	ctx context.Context,
+	provider ports.ChatModelProvider,
+	profile ports.ChatModelProfile,
+	input ports.ImageGenerationInput,
+) (ports.ImageGenerationResult, error) {
+	return generateProviderImage(ctx, provider, profile, input)
+}
+
 func streamProviderModel(
 	ctx context.Context,
 	provider ModelProviderRecord,
@@ -183,7 +193,7 @@ func streamLocalStub(ctx context.Context, profile ModelProfile, messages []model
 	last := ""
 	for i := len(messages) - 1; i >= 0; i-- {
 		if messages[i].Role == "user" {
-			last = messages[i].Content
+			last = messageText(messages[i])
 			break
 		}
 	}
@@ -212,11 +222,8 @@ func streamOpenAIResponses(
 	input := make([]map[string]any, 0, len(messages))
 	for _, message := range messages {
 		input = append(input, map[string]any{
-			"role": message.Role,
-			"content": []map[string]string{{
-				"type": "input_text",
-				"text": message.Content,
-			}},
+			"role":    message.Role,
+			"content": openAIResponsesContent(message),
 		})
 	}
 	body := map[string]any{
@@ -290,7 +297,7 @@ func streamOpenAICompatibleChat(
 ) error {
 	body := map[string]any{
 		"model":       profile.Model,
-		"messages":    messages,
+		"messages":    openAICompatibleMessages(messages),
 		"temperature": profile.Temperature,
 		"max_tokens":  profile.MaxTokens,
 		"stream":      true,
@@ -386,14 +393,14 @@ func streamAnthropicMessages(
 			if system != "" {
 				system += "\n\n"
 			}
-			system += message.Content
+			system += messageText(message)
 			continue
 		}
 		role := message.Role
 		if role != "assistant" {
 			role = "user"
 		}
-		anthropicMessages = append(anthropicMessages, modelMessage{Role: role, Content: message.Content})
+		anthropicMessages = append(anthropicMessages, modelMessage{Role: role, Content: messageText(message)})
 	}
 	body := map[string]any{
 		"model":       profile.Model,
@@ -474,7 +481,7 @@ func streamOllamaChat(
 ) error {
 	body := map[string]any{
 		"model":    profile.Model,
-		"messages": messages,
+		"messages": textOnlyMessages(messages),
 		"stream":   true,
 		"options": map[string]any{
 			"temperature": profile.Temperature,
@@ -526,6 +533,147 @@ func streamOllamaChat(
 		}
 	}
 	return scanner.Err()
+}
+
+func generateProviderImage(
+	ctx context.Context,
+	provider ModelProviderRecord,
+	profile ModelProfile,
+	input ports.ImageGenerationInput,
+) (ports.ImageGenerationResult, error) {
+	start := time.Now()
+	if profile.Model == "model_generate_stub" || provider.ProviderID == "provider_local_stub" {
+		return generateLocalImage(provider, profile, input, int(time.Since(start).Milliseconds())), nil
+	}
+	if !provider.Enabled {
+		return ports.ImageGenerationResult{}, errors.New("provider is disabled")
+	}
+	if providerRequiresAPIKey(provider) && provider.APIKey == "" {
+		return ports.ImageGenerationResult{}, errors.New("provider api key is missing")
+	}
+	if provider.APIKey == "sk-local-demo" {
+		return ports.ImageGenerationResult{}, errors.New("demo key cannot call real provider")
+	}
+	switch provider.ProviderType {
+	case ProviderOpenAI, ProviderOpenAICompatible, ProviderDeepSeek, ProviderGLM, ProviderVolcano, ProviderSiliconFlow, ProviderGemini, ProviderCustom:
+		result, err := generateOpenAICompatibleImage(ctx, provider, profile, input)
+		result.LatencyMS = int(time.Since(start).Milliseconds())
+		return result, err
+	default:
+		return ports.ImageGenerationResult{}, errors.New("image generation is not supported by this provider")
+	}
+}
+
+func generateOpenAICompatibleImage(
+	ctx context.Context,
+	provider ModelProviderRecord,
+	profile ModelProfile,
+	input ports.ImageGenerationInput,
+) (ports.ImageGenerationResult, error) {
+	prompt := strings.TrimSpace(input.Prompt)
+	if prompt == "" {
+		return ports.ImageGenerationResult{}, errors.New("image prompt is required")
+	}
+	model := strings.TrimSpace(profile.Model)
+	if model == "" {
+		model = provider.DefaultModel
+	}
+	model = imageGenerationModel(provider, model)
+	body := map[string]any{
+		"model":           model,
+		"prompt":          prompt,
+		"n":               1,
+		"size":            fallback(input.Size, "1024x1024"),
+		"response_format": fallback(input.ResponseFormat, "b64_json"),
+	}
+	resp, err := jsonPostWithAccept(ctx, imageGenerationsEndpoint(provider), body, bearerHeaders(provider.APIKey), "application/json")
+	if err != nil {
+		return ports.ImageGenerationResult{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return ports.ImageGenerationResult{}, responseError(resp)
+	}
+	payloadBytes, err := io.ReadAll(io.LimitReader(resp.Body, 4*1024*1024))
+	if err != nil {
+		return ports.ImageGenerationResult{}, err
+	}
+	var payload struct {
+		Data []struct {
+			URL           string `json:"url"`
+			B64JSON       string `json:"b64_json"`
+			RevisedPrompt string `json:"revised_prompt"`
+		} `json:"data"`
+		Error *struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		message := sanitizeProviderError(string(payloadBytes))
+		if message == "" {
+			message = err.Error()
+		}
+		return ports.ImageGenerationResult{}, fmt.Errorf("provider returned invalid image generation response: %s", message)
+	}
+	if payload.Error != nil {
+		return ports.ImageGenerationResult{}, fmt.Errorf("%s: %s", payload.Error.Code, payload.Error.Message)
+	}
+	images := make([]ports.GeneratedImage, 0, len(payload.Data))
+	for _, item := range payload.Data {
+		image := ports.GeneratedImage{
+			URL:           item.URL,
+			RevisedPrompt: item.RevisedPrompt,
+		}
+		if item.B64JSON != "" {
+			image.DataURL = "data:image/png;base64," + item.B64JSON
+			image.MimeType = "image/png"
+		}
+		images = append(images, image)
+	}
+	if len(images) == 0 {
+		return ports.ImageGenerationResult{}, errors.New("provider returned no generated images")
+	}
+	return ports.ImageGenerationResult{
+		ProviderID: provider.ProviderID,
+		Model:      model,
+		Images:     images,
+	}, nil
+}
+
+func imageGenerationModel(provider ModelProviderRecord, model string) string {
+	model = strings.TrimSpace(model)
+	if model == "" || strings.HasSuffix(model, "-image") {
+		return model
+	}
+	imageModel := model + "-image"
+	for _, available := range provider.AvailableModels {
+		if strings.TrimSpace(available) == imageModel {
+			return imageModel
+		}
+	}
+	if provider.ProviderID == "provider_9router_local" || strings.Contains(strings.ToLower(provider.BaseURL), "20128") || strings.HasPrefix(model, "cx/") {
+		return imageModel
+	}
+	return model
+}
+
+func generateLocalImage(provider ModelProviderRecord, profile ModelProfile, input ports.ImageGenerationInput, latencyMS int) ports.ImageGenerationResult {
+	prompt := strings.TrimSpace(input.Prompt)
+	if prompt == "" {
+		prompt = "DreamWorker image"
+	}
+	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect width="512" height="512" rx="44" fill="#f8fafc"/><circle cx="256" cy="210" r="92" fill="#7c3aed" opacity=".9"/><text x="256" y="350" text-anchor="middle" font-family="Arial" font-size="28" fill="#111827">%s</text></svg>`, strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(prompt))
+	return ports.ImageGenerationResult{
+		ProviderID: provider.ProviderID,
+		Model:      profile.Model,
+		Images: []ports.GeneratedImage{{
+			DataURL:       "data:image/svg+xml;base64," + base64String(svg),
+			MimeType:      "image/svg+xml",
+			RevisedPrompt: prompt,
+		}},
+		LatencyMS: latencyMS,
+	}
 }
 
 func streamSSERequest(
@@ -588,6 +736,10 @@ func scanSSE(body io.Reader, handle func(event string, data string) error) error
 }
 
 func jsonPost(ctx context.Context, endpoint string, body any, headers map[string]string) (*http.Response, error) {
+	return jsonPostWithAccept(ctx, endpoint, body, headers, "text/event-stream, application/json")
+}
+
+func jsonPostWithAccept(ctx context.Context, endpoint string, body any, headers map[string]string, accept string) (*http.Response, error) {
 	payload, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
@@ -597,7 +749,7 @@ func jsonPost(ctx context.Context, endpoint string, body any, headers map[string
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set("Accept", "text/event-stream, application/json")
+	req.Header.Set("Accept", fallback(accept, "application/json"))
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}
@@ -744,6 +896,119 @@ func probeOpenAICompatibleChat(ctx context.Context, provider ModelProviderRecord
 	return nil
 }
 
+func openAICompatibleMessages(messages []modelMessage) []map[string]any {
+	result := make([]map[string]any, 0, len(messages))
+	for _, message := range messages {
+		item := map[string]any{"role": message.Role}
+		if hasImageParts(message) {
+			item["content"] = openAIChatContentParts(message)
+		} else {
+			item["content"] = messageText(message)
+		}
+		result = append(result, item)
+	}
+	return result
+}
+
+func openAIChatContentParts(message modelMessage) []map[string]any {
+	parts := make([]map[string]any, 0, len(message.Parts)+1)
+	if text := strings.TrimSpace(message.Content); text != "" {
+		parts = append(parts, map[string]any{"type": "text", "text": text})
+	}
+	for _, part := range message.Parts {
+		switch part.Type {
+		case "text":
+			if strings.TrimSpace(part.Text) != "" && strings.TrimSpace(part.Text) != strings.TrimSpace(message.Content) {
+				parts = append(parts, map[string]any{"type": "text", "text": part.Text})
+			}
+		case "image_url":
+			if part.ImageURL != nil && strings.TrimSpace(part.ImageURL.URL) != "" {
+				imageURL := map[string]any{"url": part.ImageURL.URL}
+				if strings.TrimSpace(part.ImageURL.Detail) != "" {
+					imageURL["detail"] = part.ImageURL.Detail
+				}
+				parts = append(parts, map[string]any{"type": "image_url", "image_url": imageURL})
+			}
+		}
+	}
+	if len(parts) == 0 {
+		parts = append(parts, map[string]any{"type": "text", "text": messageText(message)})
+	}
+	return parts
+}
+
+func openAIResponsesContent(message modelMessage) []map[string]any {
+	parts := make([]map[string]any, 0, len(message.Parts)+1)
+	if text := strings.TrimSpace(message.Content); text != "" {
+		parts = append(parts, map[string]any{"type": "input_text", "text": text})
+	}
+	for _, part := range message.Parts {
+		switch part.Type {
+		case "text":
+			if strings.TrimSpace(part.Text) != "" && strings.TrimSpace(part.Text) != strings.TrimSpace(message.Content) {
+				parts = append(parts, map[string]any{"type": "input_text", "text": part.Text})
+			}
+		case "image_url":
+			if part.ImageURL != nil && strings.TrimSpace(part.ImageURL.URL) != "" {
+				image := map[string]any{"type": "input_image", "image_url": part.ImageURL.URL}
+				if strings.TrimSpace(part.ImageURL.Detail) != "" {
+					image["detail"] = part.ImageURL.Detail
+				}
+				parts = append(parts, image)
+			}
+		}
+	}
+	if len(parts) == 0 {
+		parts = append(parts, map[string]any{"type": "input_text", "text": messageText(message)})
+	}
+	return parts
+}
+
+func textOnlyMessages(messages []modelMessage) []modelMessage {
+	result := make([]modelMessage, 0, len(messages))
+	for _, message := range messages {
+		result = append(result, modelMessage{Role: message.Role, Content: messageText(message)})
+	}
+	return result
+}
+
+func messageText(message modelMessage) string {
+	text := strings.TrimSpace(message.Content)
+	for _, part := range message.Parts {
+		if part.Type == "text" && strings.TrimSpace(part.Text) != "" && !strings.Contains(text, strings.TrimSpace(part.Text)) {
+			if text != "" {
+				text += "\n"
+			}
+			text += strings.TrimSpace(part.Text)
+		}
+	}
+	if count := imagePartCount(message); count > 0 {
+		if text != "" {
+			text += "\n"
+		}
+		if count == 1 {
+			text += "[image attached]"
+		} else {
+			text += fmt.Sprintf("[%d images attached]", count)
+		}
+	}
+	return text
+}
+
+func hasImageParts(message modelMessage) bool {
+	return imagePartCount(message) > 0
+}
+
+func imagePartCount(message modelMessage) int {
+	count := 0
+	for _, part := range message.Parts {
+		if part.Type == "image_url" && part.ImageURL != nil && strings.TrimSpace(part.ImageURL.URL) != "" {
+			count++
+		}
+	}
+	return count
+}
+
 func responseError(resp *http.Response) error {
 	limited, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	message := sanitizeProviderError(string(limited))
@@ -810,6 +1075,14 @@ func chatCompletionsEndpoint(provider ModelProviderRecord) string {
 		baseURL = ensureVersionedBaseURL(baseURL, "v1")
 	}
 	return joinURLPath(baseURL, "chat/completions")
+}
+
+func imageGenerationsEndpoint(provider ModelProviderRecord) string {
+	baseURL := provider.BaseURL
+	if provider.ProviderType == ProviderOpenAI || provider.ProviderType == ProviderOpenAICompatible || provider.ProviderType == ProviderCustom {
+		baseURL = ensureVersionedBaseURL(baseURL, "v1")
+	}
+	return joinURLPath(baseURL, "images/generations")
 }
 
 func anthropicMessagesEndpoint(baseURL string) string {
@@ -896,10 +1169,15 @@ func splitForStreaming(value string) []string {
 func estimateChatUsage(messages []modelMessage, output string) ChatModelUsage {
 	input := 0
 	for _, message := range messages {
-		input += estimateTokens(message.Content)
+		input += estimateTokens(messageText(message))
+		input += imagePartCount(message) * 180
 	}
 	outputTokens := estimateTokens(output)
 	return ChatModelUsage{InputTokens: input, OutputTokens: outputTokens, TotalTokens: input + outputTokens}
+}
+
+func base64String(value string) string {
+	return base64.StdEncoding.EncodeToString([]byte(value))
 }
 
 func estimateTokens(value string) int {

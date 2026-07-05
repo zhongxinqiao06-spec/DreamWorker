@@ -2,6 +2,7 @@ package modelgateway
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -33,6 +34,64 @@ func TestOpenAICompatibleStreamChatParsesSSE(t *testing.T) {
 	}
 	if usage := lastUsage(chunks); usage == nil || usage.TotalTokens != 5 {
 		t.Fatalf("expected usage, got %#v", usage)
+	}
+}
+
+func TestOpenAICompatibleStreamChatSendsImageContentParts(t *testing.T) {
+	requests := make(chan map[string]any, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		requests <- payload
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\n")
+		_, _ = fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+	defer server.Close()
+
+	messages := []ports.ChatModelMessage{
+		{Role: "system", Content: "System"},
+		{
+			Role:    "user",
+			Content: "Describe this image",
+			Parts: []ports.ChatModelContentPart{
+				{Type: "text", Text: "Describe this image"},
+				{Type: "image_url", ImageURL: &ports.ChatModelImageURL{URL: "data:image/png;base64,iVBORw0KGgo=", Detail: "low"}},
+			},
+		},
+	}
+	chunks := collectChunks(NewGateway().StreamChat(context.Background(), testProvider(server.URL+"/v1", ProviderOpenAICompatible), testProfile(), messages))
+	if content := concat(chunks); content != "ok" {
+		t.Fatalf("expected content, got %q", content)
+	}
+
+	var payload map[string]any
+	select {
+	case payload = <-requests:
+	default:
+		t.Fatal("expected request payload")
+	}
+	requestMessages, ok := payload["messages"].([]any)
+	if !ok || len(requestMessages) != 2 {
+		t.Fatalf("expected messages array, got %#v", payload["messages"])
+	}
+	userMessage, ok := requestMessages[1].(map[string]any)
+	if !ok {
+		t.Fatalf("expected user message object, got %#v", requestMessages[1])
+	}
+	parts, ok := userMessage["content"].([]any)
+	if !ok || len(parts) != 2 {
+		t.Fatalf("expected multimodal content parts, got %#v", userMessage["content"])
+	}
+	imagePart, ok := parts[1].(map[string]any)
+	if !ok || imagePart["type"] != "image_url" {
+		t.Fatalf("expected image_url part, got %#v", parts[1])
+	}
+	imageURL, ok := imagePart["image_url"].(map[string]any)
+	if !ok || imageURL["url"] != "data:image/png;base64,iVBORw0KGgo=" || imageURL["detail"] != "low" {
+		t.Fatalf("expected image URL payload, got %#v", imagePart["image_url"])
 	}
 }
 
@@ -151,6 +210,90 @@ func TestProviderErrorIsRedactedAndTruncated(t *testing.T) {
 	}
 	if len([]rune(message)) > 283 {
 		t.Fatalf("expected truncated error, got %d runes", len([]rune(message)))
+	}
+}
+
+func TestOpenAICompatibleGenerateImageParsesBase64Image(t *testing.T) {
+	requests := make(chan map[string]any, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/images/generations" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		if r.Header.Get("Accept") != "application/json" {
+			t.Fatalf("expected JSON accept header, got %q", r.Header.Get("Accept"))
+		}
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		requests <- payload
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"data":[{"b64_json":"aW1hZ2U=","revised_prompt":"radar"}]}`)
+	}))
+	defer server.Close()
+
+	result, err := NewGateway().GenerateImage(context.Background(), testProvider(server.URL+"/v1", ProviderOpenAICompatible), testProfile(), ports.ImageGenerationInput{
+		Prompt:         "radar",
+		Size:           "512x512",
+		ResponseFormat: "b64_json",
+	})
+	if err != nil {
+		t.Fatalf("generate image: %v", err)
+	}
+	if len(result.Images) != 1 || result.Images[0].DataURL != "data:image/png;base64,aW1hZ2U=" {
+		t.Fatalf("expected generated data URL, got %#v", result.Images)
+	}
+	var payload map[string]any
+	select {
+	case payload = <-requests:
+	default:
+		t.Fatal("expected request payload")
+	}
+	if payload["prompt"] != "radar" || payload["size"] != "512x512" || payload["response_format"] != "b64_json" {
+		t.Fatalf("unexpected image generation request: %#v", payload)
+	}
+}
+
+func TestOpenAICompatibleGenerateImageUsesNineRouterImageModel(t *testing.T) {
+	requests := make(chan map[string]any, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		requests <- payload
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"data":[{"b64_json":"aW1hZ2U="}]}`)
+	}))
+	defer server.Close()
+
+	provider := testProvider(server.URL+"/v1", ProviderOpenAICompatible)
+	provider.ProviderID = "provider_9router_local"
+	provider.AvailableModels = []string{"cx/gpt-5.5", "cx/gpt-5.5-image"}
+	profile := testProfile()
+	profile.Model = "cx/gpt-5.5"
+	_, err := NewGateway().GenerateImage(context.Background(), provider, profile, ports.ImageGenerationInput{Prompt: "radar"})
+	if err != nil {
+		t.Fatalf("generate image: %v", err)
+	}
+	payload := <-requests
+	if payload["model"] != "cx/gpt-5.5-image" {
+		t.Fatalf("expected 9Router image model, got %#v", payload["model"])
+	}
+}
+
+func TestOpenAICompatibleGenerateImageReportsInvalidProviderResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = fmt.Fprint(w, "entitlement required")
+	}))
+	defer server.Close()
+
+	_, err := NewGateway().GenerateImage(context.Background(), testProvider(server.URL+"/v1", ProviderOpenAICompatible), testProfile(), ports.ImageGenerationInput{
+		Prompt: "radar",
+	})
+	if err == nil || !strings.Contains(err.Error(), "entitlement required") {
+		t.Fatalf("expected provider response in error, got %v", err)
 	}
 }
 

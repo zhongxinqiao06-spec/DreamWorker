@@ -164,7 +164,7 @@ func completedChatHistory(state *resources.Store, sessionID string, assistantMes
 	history := state.Messages[sessionID]
 	result := make([]resources.ChatGatewayMessage, 0, len(history))
 	for _, message := range history {
-		if message.MessageID == assistantMessageID || strings.TrimSpace(message.Content) == "" {
+		if message.MessageID == assistantMessageID || !chatMessageHasModelContent(message) {
 			continue
 		}
 		if message.Role != "user" && message.Role != "assistant" {
@@ -173,7 +173,7 @@ func completedChatHistory(state *resources.Store, sessionID string, assistantMes
 		if message.Role == "assistant" && message.Status != "completed" {
 			continue
 		}
-		result = append(result, resources.ChatGatewayMessage{Role: message.Role, Content: resources.RedactSecrets(message.Content)})
+		result = append(result, chatMessageToGatewayMessage(message))
 	}
 	return result
 }
@@ -240,7 +240,7 @@ func splitHistoryForBudget(history []resources.ChatGatewayMessage, budget int) (
 	recentTokens := 0
 	start := len(history)
 	for index := len(history) - 1; index >= 0; index-- {
-		nextTokens := resources.EstimateTokens(history[index].Content)
+		nextTokens := gatewayMessageTokenEstimate(history[index])
 		if start != len(history) && recentTokens+nextTokens > budget {
 			break
 		}
@@ -263,7 +263,7 @@ func ensureContextSummary(state *resources.Store, sessionID string, messages []r
 		sourceIDs = append(sourceIDs, sourceID)
 		sourceBuilder.WriteString(message.Role)
 		sourceBuilder.WriteString(":")
-		sourceBuilder.WriteString(message.Content)
+		sourceBuilder.WriteString(gatewayMessageText(message))
 		sourceBuilder.WriteString("\n")
 	}
 	hash := ContentHash(sourceBuilder.String())
@@ -299,7 +299,7 @@ func deterministicContextSummary(messages []resources.ChatGatewayMessage) string
 		start = len(messages) - 12
 	}
 	for _, message := range messages[start:] {
-		content := strings.Join(strings.Fields(resources.RedactSecrets(message.Content)), " ")
+		content := strings.Join(strings.Fields(resources.RedactSecrets(gatewayMessageText(message))), " ")
 		runes := []rune(content)
 		if len(runes) > 220 {
 			content = string(runes[:220]) + "..."
@@ -312,9 +312,97 @@ func deterministicContextSummary(messages []resources.ChatGatewayMessage) string
 func estimateGatewayMessages(messages []resources.ChatGatewayMessage) int {
 	total := 0
 	for _, message := range messages {
-		total += resources.EstimateTokens(message.Content)
+		total += gatewayMessageTokenEstimate(message)
 	}
 	return total
+}
+
+func chatMessageHasModelContent(message resources.ChatMessage) bool {
+	if strings.TrimSpace(message.Content) != "" {
+		return true
+	}
+	for _, part := range message.Parts {
+		if strings.TrimSpace(part.Text) != "" || strings.TrimSpace(part.DataURL) != "" || strings.TrimSpace(part.URL) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func chatMessageToGatewayMessage(message resources.ChatMessage) resources.ChatGatewayMessage {
+	gateway := resources.ChatGatewayMessage{
+		Role:    message.Role,
+		Content: resources.RedactSecrets(message.Content),
+	}
+	if message.Role != "user" {
+		return gateway
+	}
+	parts := make([]resources.ChatGatewayContentPart, 0, len(message.Parts))
+	for _, part := range message.Parts {
+		switch part.Type {
+		case "text":
+			text := strings.TrimSpace(resources.RedactSecrets(part.Text))
+			if text != "" {
+				parts = append(parts, resources.ChatGatewayContentPart{Type: "text", Text: text})
+			}
+		case "image", "image_url":
+			url := strings.TrimSpace(part.DataURL)
+			if url == "" {
+				url = strings.TrimSpace(part.URL)
+			}
+			if url == "" {
+				continue
+			}
+			parts = append(parts, resources.ChatGatewayContentPart{
+				Type: "image_url",
+				ImageURL: &resources.ChatGatewayImageURL{
+					URL:    url,
+					Detail: strings.TrimSpace(part.Detail),
+				},
+			})
+		}
+	}
+	if len(parts) > 0 {
+		gateway.Parts = parts
+	}
+	return gateway
+}
+
+func gatewayMessageText(message resources.ChatGatewayMessage) string {
+	text := strings.TrimSpace(message.Content)
+	for _, part := range message.Parts {
+		if part.Type == "text" && strings.TrimSpace(part.Text) != "" && !strings.Contains(text, strings.TrimSpace(part.Text)) {
+			if text != "" {
+				text += "\n"
+			}
+			text += strings.TrimSpace(part.Text)
+		}
+	}
+	if count := gatewayImageCount(message); count > 0 {
+		if text != "" {
+			text += "\n"
+		}
+		if count == 1 {
+			text += "[image attached]"
+		} else {
+			text += fmt.Sprintf("[%d images attached]", count)
+		}
+	}
+	return text
+}
+
+func gatewayImageCount(message resources.ChatGatewayMessage) int {
+	count := 0
+	for _, part := range message.Parts {
+		if part.Type == "image_url" && part.ImageURL != nil && strings.TrimSpace(part.ImageURL.URL) != "" {
+			count++
+		}
+	}
+	return count
+}
+
+func gatewayMessageTokenEstimate(message resources.ChatGatewayMessage) int {
+	return resources.EstimateTokens(gatewayMessageText(message)) + gatewayImageCount(message)*180
 }
 
 func IsAutoExecutableRisk(risk string) bool {

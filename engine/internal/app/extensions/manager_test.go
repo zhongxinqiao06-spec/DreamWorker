@@ -191,6 +191,9 @@ func TestHealthCheckDiscoversModelsWithoutEndpointKey(t *testing.T) {
 		case "/", "/v1/models":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"kr/claude-sonnet-4.5"}]}`))
+		case "/v1/models/image":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"cx/gpt-5.5-image"}]}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -217,7 +220,7 @@ func TestHealthCheckDiscoversModelsWithoutEndpointKey(t *testing.T) {
 	if result.Status.HasAPIKey {
 		t.Fatalf("expected endpoint key to remain optional")
 	}
-	if len(result.Models) != 1 || result.Models[0] != "kr/claude-sonnet-4.5" {
+	if len(result.Models) != 2 || result.Models[0] != "cx/gpt-5.5-image" || result.Models[1] != "kr/claude-sonnet-4.5" {
 		t.Fatalf("unexpected models: %#v", result.Models)
 	}
 }

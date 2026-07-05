@@ -37,6 +37,7 @@ type DeleteResult = resources.DeleteResult
 type ModelProfile = resources.ModelProfile
 type ModelProviderRecord = resources.ModelProviderRecord
 type SendChatMessageInput = resources.SendChatMessageInput
+type GenerateChatImageInput = resources.GenerateChatImageInput
 type SkillRuntimeDescriptor = resources.SkillRuntimeDescriptor
 type ToolExecutionResult = resources.ToolExecutionResult
 type ToolExecutionRequest = resources.ToolExecutionRequest

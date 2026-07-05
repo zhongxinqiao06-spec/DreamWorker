@@ -6,6 +6,7 @@ coverage/
 .vite/
 .cache/
 .codex/tmp/
+.codex/recovery-*/
 *.log
 .env
 .env.local

@@ -149,8 +149,129 @@ func (s *Store) SendChatMessage(input SendChatMessageInput) (ChatTurnResult, *Ap
 	return ChatTurnResult{}, BadRequest("CHAT_STREAM_FAILED", "chat stream ended without a final result", "retry the message")
 }
 
+func (s *Store) GenerateChatImage(ctx context.Context, input GenerateChatImageInput) (ChatTurnResult, *AppError) {
+	prompt := strings.TrimSpace(input.Prompt)
+	if strings.TrimSpace(input.SessionID) == "" || prompt == "" {
+		return ChatTurnResult{}, BadRequest("BAD_REQUEST", "image prompt is required", "enter a prompt for image generation")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	s.Mu.Lock()
+	session, ok := s.Sessions[input.SessionID]
+	if !ok {
+		s.Mu.Unlock()
+		return ChatTurnResult{}, NotFound("SESSION_NOT_FOUND", "session not found", "create a new chat session")
+	}
+	agent, ok := s.Agents[session.AgentID]
+	if !ok || !agent.Enabled {
+		s.Mu.Unlock()
+		return ChatTurnResult{}, NotFound("AGENT_NOT_FOUND", "agent is unavailable", "select another agent")
+	}
+	profile, provider, _, bindErr := s.resolveChatModelBindingLocked(session, agent)
+	if bindErr != nil {
+		s.Mu.Unlock()
+		return ChatTurnResult{}, bindErr
+	}
+	traceID := s.TraceID()
+	now := s.Now()
+	attemptID := "attempt_" + s.NextIDLocked("msg")
+	userMessage := ChatMessage{
+		MessageID: "user_" + s.NextIDLocked("msg"),
+		AttemptID: attemptID,
+		SessionID: session.SessionID,
+		Role:      "user",
+		Content:   prompt,
+		Parts:     normalizeChatMessageParts(prompt, nil),
+		Status:    "completed",
+		TraceID:   traceID,
+		CreatedAt: now,
+	}
+	assistantMessage := ChatMessage{
+		MessageID:      "assistant_" + s.NextIDLocked("msg"),
+		AttemptID:      attemptID,
+		SessionID:      session.SessionID,
+		Role:           "assistant",
+		Status:         "streaming",
+		ProviderID:     provider.ProviderID,
+		Model:          profile.Model,
+		RuntimeSummary: buildRuntimeSummary(agent, session, provider, profile),
+		TraceID:        traceID,
+		CreatedAt:      now,
+	}
+	s.Mu.Unlock()
+
+	startedAt := time.Now()
+	generated, err := s.ModelGateway.GenerateImage(ctx, toChatModelProvider(provider), toChatModelProfile(profile), resources.ImageGenerationInput{
+		Prompt:         prompt,
+		Size:           fallback(input.Size, "1024x1024"),
+		ResponseFormat: "b64_json",
+	})
+	latency := latencyMS(startedAt)
+
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	now = s.Now()
+	errorCode := ""
+	finishReason := "stop"
+	if err != nil {
+		errorCode = "IMAGE_GENERATION_FAILED"
+		finishReason = "error"
+		assistantMessage.Status = "failed"
+		assistantMessage.Content = "图片生成失败：" + resources.RedactSecrets(err.Error())
+	} else {
+		assistantMessage.Status = "completed"
+		assistantMessage.Content = "已生成图片。"
+		assistantMessage.Parts = generatedImagesToMessageParts(generated.Images)
+		if len(assistantMessage.Parts) == 0 {
+			errorCode = "IMAGE_GENERATION_EMPTY"
+			finishReason = "error"
+			assistantMessage.Status = "failed"
+			assistantMessage.Content = "图片生成失败：供应商没有返回可展示的图片。"
+		}
+	}
+	assistantMessage.FinishReason = finishReason
+	session.UpdatedAt = now
+	s.Messages[session.SessionID] = append(s.Messages[session.SessionID], userMessage, assistantMessage)
+	session.MessageCount = len(s.Messages[session.SessionID])
+	s.Sessions[session.SessionID] = session
+	provider.LastStreamAt = &now
+	provider.LatencyMS = latency
+	if errorCode != "" {
+		provider.LastErrorCode = &errorCode
+		provider.HealthStatus = "error"
+		provider.Status = "error"
+	} else {
+		provider.LastError = nil
+		provider.LastErrorCode = nil
+		provider.HealthStatus = "connected"
+		provider.Status = "connected"
+		provider.StreamingVerified = true
+	}
+	s.Providers[provider.ProviderID] = provider
+	_ = s.PersistWorkspaceSnapshotLocked()
+	messages := append([]ChatMessage{}, s.Messages[session.SessionID]...)
+	return ChatTurnResult{
+		Session:        session,
+		Messages:       messages,
+		ExecutionSteps: buildImageGenerationSteps(now, errorCode == ""),
+		AuditSummary: ChatAuditSummary{
+			ContentHash:  contentHash(prompt),
+			ProviderID:   provider.ProviderID,
+			Model:        profile.Model,
+			LatencyMS:    latency,
+			ErrorCode:    errorCode,
+			FinishReason: finishReason,
+		},
+		ProviderStatus:  provider.Safe().Status,
+		RuntimeSnapshot: assistantMessage.RuntimeSummary,
+		RuntimeSummary:  assistantMessage.RuntimeSummary,
+	}, nil
+}
+
 func (s *Store) StreamChatMessage(ctx context.Context, input SendChatMessageInput) (<-chan ChatStreamEvent, *AppError) {
-	if input.SessionID == "" || (strings.TrimSpace(input.Content) == "" && strings.TrimSpace(input.RetryOfMessageID) == "") {
+	if input.SessionID == "" || (!hasSendableChatContent(input) && strings.TrimSpace(input.RetryOfMessageID) == "") {
 		return nil, BadRequest("BAD_REQUEST", "message content is required", "enter a message for the agent")
 	}
 
@@ -430,7 +551,7 @@ func (s *Store) buildModelMessagesLocked(session ChatSession, assistantMessageID
 		warning = &ChatStreamWarning{Code: "CONTEXT_TRIMMED", Message: "Older chat messages were trimmed to fit the context window."}
 	}
 	for _, message := range history[start:] {
-		if message.MessageID == assistantMessageID || strings.TrimSpace(message.Content) == "" {
+		if message.MessageID == assistantMessageID || !messageHasModelContent(message) {
 			continue
 		}
 		if message.Role != "user" && message.Role != "assistant" {
@@ -439,7 +560,7 @@ func (s *Store) buildModelMessagesLocked(session ChatSession, assistantMessageID
 		if message.Role == "assistant" && message.Status != "completed" {
 			continue
 		}
-		result = append(result, ChatGatewayMessage{Role: message.Role, Content: message.Content})
+		result = append(result, chatMessageToGatewayMessage(message))
 	}
 	return result, warning
 }
@@ -536,6 +657,7 @@ func (s *Store) resolveUserMessageForAttemptLocked(session ChatSession, input Se
 		SessionID: session.SessionID,
 		Role:      "user",
 		Content:   strings.TrimSpace(input.Content),
+		Parts:     normalizeChatMessageParts(input.Content, input.Parts),
 		Status:    "completed",
 		TraceID:   traceID,
 		CreatedAt: now,
@@ -556,6 +678,139 @@ func (s *Store) DeleteChatSession(sessionID string) (DeleteResult, *AppError) {
 	return DeleteResult{OK: true, DeletedID: sessionID}, nil
 }
 
+func hasSendableChatContent(input SendChatMessageInput) bool {
+	if strings.TrimSpace(input.Content) != "" {
+		return true
+	}
+	for _, part := range input.Parts {
+		if strings.TrimSpace(part.Text) != "" || strings.TrimSpace(part.DataURL) != "" || strings.TrimSpace(part.URL) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeChatMessageParts(content string, parts []resources.ChatMessagePart) []resources.ChatMessagePart {
+	normalized := make([]resources.ChatMessagePart, 0, len(parts)+1)
+	if text := strings.TrimSpace(content); text != "" {
+		normalized = append(normalized, resources.ChatMessagePart{Type: "text", Text: text})
+	}
+	for _, part := range parts {
+		partType := strings.TrimSpace(part.Type)
+		if partType == "" {
+			if strings.TrimSpace(part.DataURL) != "" || strings.TrimSpace(part.URL) != "" {
+				partType = "image"
+			} else if strings.TrimSpace(part.Text) != "" {
+				partType = "text"
+			}
+		}
+		switch partType {
+		case "text":
+			text := strings.TrimSpace(part.Text)
+			if text != "" && !containsTextPart(normalized, text) {
+				normalized = append(normalized, resources.ChatMessagePart{Type: "text", Text: text})
+			}
+		case "image", "image_url":
+			dataURL := strings.TrimSpace(part.DataURL)
+			url := strings.TrimSpace(part.URL)
+			if dataURL == "" && url == "" {
+				continue
+			}
+			normalized = append(normalized, resources.ChatMessagePart{
+				Type:          "image",
+				DataURL:       dataURL,
+				URL:           url,
+				MimeType:      strings.TrimSpace(part.MimeType),
+				FileName:      strings.TrimSpace(part.FileName),
+				Detail:        strings.TrimSpace(part.Detail),
+				RevisedPrompt: strings.TrimSpace(part.RevisedPrompt),
+			})
+		}
+	}
+	return normalized
+}
+
+func containsTextPart(parts []resources.ChatMessagePart, text string) bool {
+	for _, part := range parts {
+		if part.Type == "text" && strings.TrimSpace(part.Text) == text {
+			return true
+		}
+	}
+	return false
+}
+
+func messageHasModelContent(message ChatMessage) bool {
+	if strings.TrimSpace(message.Content) != "" {
+		return true
+	}
+	for _, part := range message.Parts {
+		if strings.TrimSpace(part.Text) != "" || strings.TrimSpace(part.DataURL) != "" || strings.TrimSpace(part.URL) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func chatMessageToGatewayMessage(message ChatMessage) ChatGatewayMessage {
+	gateway := ChatGatewayMessage{
+		Role:    message.Role,
+		Content: resources.RedactSecrets(message.Content),
+	}
+	if message.Role != "user" {
+		return gateway
+	}
+	parts := make([]resources.ChatGatewayContentPart, 0, len(message.Parts))
+	for _, part := range message.Parts {
+		switch part.Type {
+		case "text":
+			text := strings.TrimSpace(resources.RedactSecrets(part.Text))
+			if text != "" {
+				parts = append(parts, resources.ChatGatewayContentPart{Type: "text", Text: text})
+			}
+		case "image", "image_url":
+			url := strings.TrimSpace(part.DataURL)
+			if url == "" {
+				url = strings.TrimSpace(part.URL)
+			}
+			if url == "" {
+				continue
+			}
+			parts = append(parts, resources.ChatGatewayContentPart{
+				Type: "image_url",
+				ImageURL: &resources.ChatGatewayImageURL{
+					URL:    url,
+					Detail: strings.TrimSpace(part.Detail),
+				},
+			})
+		}
+	}
+	if len(parts) > 0 {
+		gateway.Parts = parts
+	}
+	return gateway
+}
+
+func generatedImagesToMessageParts(images []resources.GeneratedImage) []resources.ChatMessagePart {
+	parts := make([]resources.ChatMessagePart, 0, len(images))
+	for index, image := range images {
+		dataURL := strings.TrimSpace(image.DataURL)
+		url := strings.TrimSpace(image.URL)
+		if dataURL == "" && url == "" {
+			continue
+		}
+		fileName := fmt.Sprintf("generated-image-%d", index+1)
+		parts = append(parts, resources.ChatMessagePart{
+			Type:          "image",
+			DataURL:       dataURL,
+			URL:           url,
+			MimeType:      fallback(image.MimeType, "image/png"),
+			FileName:      fileName,
+			RevisedPrompt: strings.TrimSpace(image.RevisedPrompt),
+		})
+	}
+	return parts
+}
+
 func buildCompletedChatExecutionSteps(timestamp string, agent AgentConfig) []ChatExecutionStep {
 	strategy := fallback(agent.Planner.Strategy, "plan-execute")
 	return []ChatExecutionStep{
@@ -564,6 +819,21 @@ func buildCompletedChatExecutionSteps(timestamp string, agent AgentConfig) []Cha
 		chatStep("step_execute", "EXECUTE", "Model stream", "Streamed provider response through the Engine.", "completed", timestamp),
 		chatStep("step_observe", "OBSERVE", "Persist result", "Recorded final response, usage and trace metadata.", "completed", timestamp),
 		chatStep("step_replan", "REPLAN", "Ready", "Ready for steering, retry or project handoff.", "ready", timestamp),
+	}
+}
+
+func buildImageGenerationSteps(timestamp string, ok bool) []ChatExecutionStep {
+	status := "completed"
+	summary := "Generated image artifact through the configured model provider."
+	if !ok {
+		status = "error"
+		summary = "Image generation failed at the configured model provider."
+	}
+	return []ChatExecutionStep{
+		chatStep("step_plan", "PLAN", "Plan", "Bind session, agent and image-capable model profile.", "completed", timestamp),
+		chatStep("step_execute", "EXECUTE", "Generate image", summary, status, timestamp),
+		chatStep("step_observe", "OBSERVE", "Persist image result", "Recorded image result, trace metadata and provider audit.", "completed", timestamp),
+		chatStep("step_replan", "REPLAN", "Ready", "Ready for the next chat turn.", "ready", timestamp),
 	}
 }
 

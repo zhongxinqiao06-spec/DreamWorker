@@ -564,7 +564,53 @@ function createDreamWorkerApiStub(): DreamWorkerApi {
         }
       ]),
       getProjectModule: vi.fn(),
-      updateProjectModuleConfig: vi.fn()
+      updateProjectModuleConfig: vi.fn(),
+      importRequirementFiles: vi.fn().mockResolvedValue(null),
+      listRequirementSources: vi.fn().mockResolvedValue({
+        projectId: 'project_001',
+        sources: []
+      }),
+      previewRequirementSource: vi.fn().mockResolvedValue({
+        projectId: 'project_001',
+        source: {
+          sourceId: 'project_description',
+          kind: 'project_description',
+          fileName: '',
+          relativePath: '',
+          absolutePath: '',
+          mimeType: 'text/plain',
+          charCount: 0,
+          importedAt: '2026-07-01T00:00:00Z',
+          summary: ''
+        },
+        parser: 'direct_text',
+        content: '',
+        charCount: 0,
+        truncated: false,
+        traceId: 'tr_preview',
+        createdAt: '2026-07-01T00:00:00Z'
+      }),
+      runRequirementAnalysis: vi.fn().mockResolvedValue({
+        runId: 'req_001',
+        projectId: 'project_001',
+        status: 'completed',
+        sources: [],
+        analysis: {
+          projectTitle: 'AI 项目孵化器',
+          summary: '',
+          sources: [],
+          roles: [],
+          features: [],
+          nonFunctionalRequirements: [],
+          risks: [],
+          openQuestions: []
+        },
+        featureCount: 0,
+        outputFiles: [],
+        warnings: [],
+        traceId: 'tr_req',
+        createdAt: '2026-07-01T00:00:00Z'
+      })
     },
     chat: {
       listSessions: vi.fn().mockResolvedValue([
@@ -652,6 +698,63 @@ function createDreamWorkerApiStub(): DreamWorkerApi {
       })),
       cancelStream: vi.fn(),
       deleteSession: vi.fn()
+    },
+    coding: {
+      listEngines: vi.fn().mockResolvedValue({
+        runtimeDir: '',
+        nodeBin: 'node',
+        adapterPath: '',
+        available: true,
+        message: 'ready',
+        engines: []
+      }),
+      createSession: vi.fn().mockResolvedValue({
+        sessionId: 'coding_001',
+        projectId: 'project_001',
+        engineId: 'codex',
+        providerId: 'provider_deepseek',
+        model: 'deepseek-v4-flash',
+        title: 'Coding session',
+        localRootPath: 'C:\\DreamWorkerProjects\\project_001',
+        engineThreadId: '',
+        status: 'ready',
+        createdAt: '2026-07-01T00:00:00Z',
+        updatedAt: '2026-07-01T00:00:00Z'
+      }),
+      getSession: vi.fn().mockResolvedValue({
+        sessionId: 'coding_001',
+        projectId: 'project_001',
+        engineId: 'codex',
+        providerId: 'provider_deepseek',
+        model: 'deepseek-v4-flash',
+        title: 'Coding session',
+        localRootPath: 'C:\\DreamWorkerProjects\\project_001',
+        engineThreadId: '',
+        status: 'ready',
+        createdAt: '2026-07-01T00:00:00Z',
+        updatedAt: '2026-07-01T00:00:00Z'
+      }),
+      listFiles: vi.fn().mockResolvedValue([]),
+      readFile: vi.fn().mockResolvedValue({
+        projectId: 'project_001',
+        path: 'README.md',
+        content: '',
+        size: 0,
+        truncated: false,
+        mimeType: 'text/markdown'
+      }),
+      fileStatus: vi.fn().mockResolvedValue({
+        projectId: 'project_001',
+        branch: 'main',
+        changes: [],
+        clean: true,
+        message: 'clean'
+      }),
+      streamTurn: vi.fn().mockImplementation(async (input) => ({
+        streamId: input.streamId ?? 'coding_stream_test',
+        cancel: vi.fn()
+      })),
+      cancelTurn: vi.fn().mockResolvedValue({ ok: true, deletedId: 'coding_stream_test' })
     }
   }
 }

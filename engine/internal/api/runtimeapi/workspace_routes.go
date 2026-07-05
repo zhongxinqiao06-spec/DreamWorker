@@ -1,6 +1,7 @@
 package runtimeapi
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -117,6 +118,16 @@ func RegisterWorkspaceRoutes(mux *http.ServeMux, token string, store *workspace.
 	})
 	registerPost(mux, handler, "/projects/modules/get", store.GetProjectModule)
 	registerPost(mux, handler, "/projects/modules/update-config", store.UpdateProjectModuleConfig)
+	registerPost(mux, handler, "/projects/requirements/import-files", store.ImportRequirementFiles)
+	registerPostID(mux, handler, "/projects/requirements/sources", func(request workspace.IDRequest) (workspace.RequirementSourcesResult, *workspace.AppError) {
+		return store.ListRequirementSources(request.ProjectID)
+	})
+	registerPost(mux, handler, "/projects/requirements/preview-source", func(request workspace.PreviewRequirementSourceInput) (workspace.RequirementSourcePreviewResult, *workspace.AppError) {
+		return store.PreviewRequirementSource(context.Background(), request)
+	})
+	registerPost(mux, handler, "/projects/requirements/run", func(request workspace.RunRequirementAnalysisInput) (workspace.RequirementAnalysisRun, *workspace.AppError) {
+		return store.RunRequirementAnalysis(context.Background(), request)
+	})
 
 	registerGet(mux, handler, "/chat/sessions", store.ListChatSessions)
 	registerPost(mux, handler, "/chat/sessions/create", store.CreateChatSession)
@@ -127,9 +138,21 @@ func RegisterWorkspaceRoutes(mux *http.ServeMux, token string, store *workspace.
 	registerChatStream(mux, handler, "/chat/messages/stream")
 	registerPost(mux, handler, "/chat/messages/cancel", store.CancelChatStream)
 	registerPost(mux, handler, "/chat/messages/send", store.SendChatMessage)
+	registerPost(mux, handler, "/chat/images/generate", func(request workspace.GenerateChatImageInput) (workspace.ChatTurnResult, *workspace.AppError) {
+		return store.GenerateChatImage(context.Background(), request)
+	})
 	registerPostID(mux, handler, "/chat/sessions/delete", func(request workspace.IDRequest) (workspace.DeleteResult, *workspace.AppError) {
 		return store.DeleteChatSession(request.SessionID)
 	})
+
+	registerGet(mux, handler, "/coding/engines", store.ListCodingEngines)
+	registerPost(mux, handler, "/coding/sessions/create", store.CreateCodingSession)
+	registerPost(mux, handler, "/coding/sessions/get", store.GetCodingSession)
+	registerPost(mux, handler, "/coding/files/list", store.ListCodingFiles)
+	registerPost(mux, handler, "/coding/files/read", store.ReadCodingFile)
+	registerPost(mux, handler, "/coding/files/status", store.CodingFileStatus)
+	registerCodingStream(mux, handler, "/coding/turns/stream")
+	registerPost(mux, handler, "/coding/turns/cancel", store.CancelCodingTurn)
 }
 
 func registerChatStream(mux *http.ServeMux, h workspaceHandler, path string) {
@@ -142,6 +165,42 @@ func registerChatStream(mux *http.ServeMux, h workspaceHandler, path string) {
 			return
 		}
 		events, appErr := h.store.StreamChatMessage(r.Context(), request)
+		if appErr != nil {
+			writeWorkspaceError(w, appErr)
+			return
+		}
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			writeError(w, http.StatusInternalServerError, "STREAM_UNSUPPORTED", "streaming is not supported by this response writer", "retry the request")
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.WriteHeader(http.StatusOK)
+		for event := range events {
+			payload, err := json.Marshal(event)
+			if err != nil {
+				continue
+			}
+			if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Type, payload); err != nil {
+				return
+			}
+			flusher.Flush()
+		}
+	})
+}
+
+func registerCodingStream(mux *http.ServeMux, h workspaceHandler, path string) {
+	mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		if !h.guard(w, r, http.MethodPost) {
+			return
+		}
+		request, ok := decodeWorkspaceRequest[workspace.CodingTurnInput](w, r)
+		if !ok {
+			return
+		}
+		events, appErr := h.store.StreamCodingTurn(r.Context(), request)
 		if appErr != nil {
 			writeWorkspaceError(w, appErr)
 			return

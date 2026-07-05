@@ -162,6 +162,8 @@ func (s *Store) ListProjectModules(projectID string) ([]ProjectModule, *AppError
 	if !ok {
 		return nil, NotFound("PROJECT_NOT_FOUND", "项目不存在或模块未初始化。", "请刷新项目列表。")
 	}
+	modules = normalizeProjectModuleSet(projectID, modules)
+	s.Modules[projectID] = modules
 	values := make([]ProjectModule, 0, len(modules))
 	for _, module := range modules {
 		values = append(values, module)
@@ -235,7 +237,7 @@ func (s *Store) createProjectLocked(input CreateProjectInput, timestamp string) 
 	}
 	project = normalizeProject(project)
 	s.Projects[project.ProjectID] = project
-	s.Modules[project.ProjectID] = createProjectModules(project.ProjectID)
+	s.Modules[project.ProjectID] = normalizeProjectModuleSet(project.ProjectID, createProjectModules(project.ProjectID))
 	return project
 }
 

@@ -26,19 +26,19 @@ func createProjectModules(projectID string) map[string]ProjectModule {
 			ModuleID:        "product",
 			DisplayName:     "产品模块",
 			Status:          "idle",
-			Summary:         "负责 MVP 收敛、PRD、原型说明和 Blueprint Canvas 输入。",
+			Summary:         "负责需求分析、PRD、原型说明和 Blueprint Canvas 输入。",
 			DefaultAgents:   []string{"agent_product_designer", "agent_prototype_designer", "agent_evaluator"},
 			EnabledSkills:   []string{"skill_prd_draft"},
 			EnabledTools:    []string{"tool_model_generate_stub", "tool_artifact_write"},
-			OutputArtifacts: []string{"mvp_scope.md", "prd.md", "prototype_notes.md"},
-			NextBestAction:  "确认验证结论后再生成 MVP 范围。",
+			OutputArtifacts: []string{"feature_list.xlsx", "requirements_spec.docx", "requirements_analysis.json"},
+			NextBestAction:  "先汇总探索结论和需求文件，再生成功能清单与需求规格说明。",
 			Submodules: []ProjectSubmodule{
-				moduleCard(projectID, "product", "mvp_scope", "MVP 收敛", "idle", "把目标用户、核心场景和必须交付物压缩到首版范围。", []string{"agent_product_designer"}, []string{"skill_prd_draft"}, []string{"tool_model_generate_stub"}, []string{"mvp_scope.md"}, "先锁定不可省略的核心闭环。", "Shape"),
-				moduleCard(projectID, "product", "prd_draft", "PRD 草案", "idle", "输出用户故事、功能边界、状态和验收条件。", []string{"agent_product_designer", "agent_evaluator"}, []string{"skill_prd_draft"}, []string{"tool_artifact_write"}, []string{"prd.md"}, "等待 MVP 范围确认后生成 PRD 草案。", "Shape"),
+				moduleCard(projectID, "product", "requirement_analysis", "需求分析", "ready", "根据探索结果或用户上传的项目要求文件，抽取功能清单并生成需求规格说明。", []string{"agent_product_designer", "agent_evaluator"}, []string{"skill_prd_draft"}, []string{"tool_model_generate_stub", "tool_artifact_write"}, []string{"feature_list.xlsx", "requirements_spec.docx", "requirements_analysis.json"}, "导入需求文件或选择探索产物后运行分析。", "Analyze"),
+				moduleCard(projectID, "product", "prd_draft", "PRD 草案", "idle", "输出用户故事、功能边界、状态和验收条件。", []string{"agent_product_designer", "agent_evaluator"}, []string{"skill_prd_draft"}, []string{"tool_artifact_write"}, []string{"prd.md"}, "等待需求分析稳定后生成 PRD 草案。", "Shape"),
 				moduleCard(projectID, "product", "prototype_notes", "原型说明", "idle", "描述关键界面、交互状态和用户路径。", []string{"agent_prototype_designer"}, []string{"skill_prd_draft"}, []string{"tool_model_generate_stub"}, []string{"prototype_notes.md"}, "先补齐核心路径，再进入视觉稿。", "Shape"),
 				moduleCard(projectID, "product", "blueprint_canvas", "蓝图画布", "idle", "把产品对象、事件、能力和风险整理成工程蓝图输入。", []string{"agent_product_designer", "agent_evaluator"}, []string{"skill_blueprint"}, []string{"tool_artifact_write"}, []string{"blueprint.yaml"}, "PRD 稳定后同步 Blueprint Canvas。", "Shape"),
 			},
-			Config: map[string]any{"stage": "Shape", "requiresDecisionGate": true},
+			Config: map[string]any{"stage": "Analyze", "requiresDecisionGate": true, "documentParser": "mineru"},
 		},
 		"development": {
 			ProjectID:       projectID,
@@ -56,6 +56,7 @@ func createProjectModules(projectID string) map[string]ProjectModule {
 				moduleCard(projectID, "development", "tech_stack_cost", "技术栈与成本", "idle", "评估依赖、模型成本、运行成本和替代方案。", []string{"agent_tech_stack_advisor"}, []string{"skill_blueprint"}, []string{"tool_model_generate_stub"}, []string{"tech_stack.md", "cost_estimate.md"}, "等待架构约束明确后评估成本。", "Build"),
 				moduleCard(projectID, "development", "pr_breakdown", "PR 拆分", "idle", "把蓝图拆成可独立验证、可回滚的 PR 序列。", []string{"agent_dev_orchestrator"}, []string{"skill_blueprint"}, []string{"tool_artifact_write"}, []string{"issue_plan.md"}, "先锁定验收门，再切 PR。", "Build"),
 				moduleCard(projectID, "development", "test_gates", "测试门禁", "idle", "定义单测、契约测试、安全 smoke 和 E2E 验收。", []string{"agent_dev_orchestrator", "agent_evaluator"}, []string{"skill_blueprint"}, []string{"tool_artifact_write"}, []string{"test_plan.md"}, "PR 拆分完成后补测试矩阵。", "Build"),
+				moduleCard(projectID, "development", "coding_agent", "编码 Agent", "ready", "内置 Claude Agent、Codex、OpenCode 三种 SDK，提供文件树、编码对话和直接写入。", []string{"agent_dev_orchestrator"}, []string{"skill_blueprint"}, []string{"tool_artifact_write"}, []string{"3 Engine", "文件树", "直接写入"}, "绑定 localRootPath 后进入三栏编码工作台。", "Build"),
 			},
 			Config: map[string]any{"stage": "Build", "writeCodeAutomatically": false},
 		},
@@ -79,6 +80,89 @@ func createProjectModules(projectID string) map[string]ProjectModule {
 			Config: map[string]any{"stage": "Launch", "publishRequiresApproval": true},
 		},
 	}
+}
+
+func normalizeProjectModuleSet(projectID string, modules map[string]ProjectModule) map[string]ProjectModule {
+	defaults := createProjectModules(projectID)
+	if modules == nil {
+		return defaults
+	}
+	if product, ok := modules["product"]; ok {
+		product.ProjectID = projectID
+		product.ModuleID = "product"
+		product.Summary = "负责需求分析、PRD、原型说明和 Blueprint Canvas 输入。"
+		product.OutputArtifacts = []string{"feature_list.xlsx", "requirements_spec.docx", "requirements_analysis.json"}
+		product.NextBestAction = "先汇总探索结论和需求文件，再生成功能清单与需求规格说明。"
+		product.Config = mergeConfig(defaults["product"].Config, product.Config)
+		product.Submodules = normalizeProductSubmodules(projectID, product.Submodules, defaults["product"].Submodules)
+		modules["product"] = product
+	}
+	if development, ok := modules["development"]; ok {
+		development.ProjectID = projectID
+		development.ModuleID = "development"
+		development.Config = mergeConfig(defaults["development"].Config, development.Config)
+		development.Submodules = normalizeModuleSubmodules(projectID, "development", development.Submodules, defaults["development"].Submodules)
+		modules["development"] = development
+	}
+	return modules
+}
+
+func normalizeProductSubmodules(projectID string, current []ProjectSubmodule, defaults []ProjectSubmodule) []ProjectSubmodule {
+	if len(current) == 0 {
+		return defaults
+	}
+	result := make([]ProjectSubmodule, 0, len(current))
+	seenRequirementAnalysis := false
+	for _, submodule := range current {
+		if submodule.SubmoduleID == "mvp_scope" || submodule.SubmoduleID == "requirement_analysis" {
+			requirement := defaults[0]
+			requirement.ProjectID = projectID
+			result = append(result, requirement)
+			seenRequirementAnalysis = true
+			continue
+		}
+		submodule.ProjectID = projectID
+		submodule.ModuleID = "product"
+		if submodule.SubmoduleID == "prd_draft" {
+			submodule.NextBestAction = "等待需求分析稳定后生成 PRD 草案。"
+		}
+		result = append(result, submodule)
+	}
+	if !seenRequirementAnalysis {
+		result = append([]ProjectSubmodule{defaults[0]}, result...)
+	}
+	return result
+}
+
+func normalizeModuleSubmodules(projectID string, moduleID string, current []ProjectSubmodule, defaults []ProjectSubmodule) []ProjectSubmodule {
+	if len(current) == 0 {
+		return defaults
+	}
+	result := make([]ProjectSubmodule, 0, len(current)+len(defaults))
+	seen := make(map[string]bool, len(current))
+	for _, submodule := range current {
+		submodule.ProjectID = projectID
+		submodule.ModuleID = moduleID
+		seen[submodule.SubmoduleID] = true
+		result = append(result, submodule)
+	}
+	for _, submodule := range defaults {
+		if seen[submodule.SubmoduleID] {
+			continue
+		}
+		submodule.ProjectID = projectID
+		submodule.ModuleID = moduleID
+		result = append(result, submodule)
+	}
+	return result
+}
+
+func mergeConfig(defaults map[string]any, current map[string]any) map[string]any {
+	result := cloneAnyMap(defaults)
+	for key, value := range current {
+		result[key] = value
+	}
+	return result
 }
 
 func moduleCard(

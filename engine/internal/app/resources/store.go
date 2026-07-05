@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/zhongxinqiao06-spec/DreamWorker/engine/internal/ports"
 )
 
 type Store struct {
@@ -21,6 +23,7 @@ type Store struct {
 	Sequence         int
 	Streams          map[string]contextCancel
 	ModelGateway     ModelGateway
+	DocumentParser   ports.DocumentParser
 	AgentDir         string
 	ConfigDir        string
 	Providers        map[string]ModelProviderRecord
@@ -84,6 +87,12 @@ func WithConfigDir(configDir string) StoreOption {
 		if store.ConfigDir != "" {
 			store.ConfigDir = filepath.Clean(store.ConfigDir)
 		}
+	}
+}
+
+func WithDocumentParser(parser ports.DocumentParser) StoreOption {
+	return func(store *Store) {
+		store.DocumentParser = parser
 	}
 }
 

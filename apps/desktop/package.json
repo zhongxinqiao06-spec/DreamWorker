@@ -39,6 +39,10 @@
       {
         "from": "../../.agent",
         "to": ".agent"
+      },
+      {
+        "from": "../../out/coding-agent-runtime",
+        "to": "coding-agent-runtime"
       }
     ],
     "asar": true,

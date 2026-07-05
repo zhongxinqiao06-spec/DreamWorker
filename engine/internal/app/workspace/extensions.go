@@ -251,7 +251,7 @@ func (s *Store) syncExtensionProviders() {
 			Enabled:           enabled,
 			Status:            healthStatus,
 			HealthStatus:      healthStatus,
-			Capabilities:      []string{"chat", "tools", "json_schema"},
+			Capabilities:      []string{"chat", "tools", "vision", "image_generation", "json_schema"},
 			SupportsStream:    true,
 			ModelCount:        len(models),
 			LatencyMS:         0,

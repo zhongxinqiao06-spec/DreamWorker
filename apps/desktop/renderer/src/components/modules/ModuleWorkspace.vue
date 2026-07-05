@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import CodingAgentWorkspace from './CodingAgentWorkspace.vue'
 import ModuleInspector from './ModuleInspector.vue'
 import ProjectContextPanel from './ProjectContextPanel.vue'
+import RequirementAnalysisWorkspace from './RequirementAnalysisWorkspace.vue'
 import SubmoduleCard from './SubmoduleCard.vue'
 import { useAppShellStore } from '../../stores/app-shell'
 import { moduleShortTitle, moduleTitle, statusLabel } from '../../stores/workspace-navigation'
@@ -10,10 +12,22 @@ const appShell = useAppShellStore()
 
 const moduleId = computed(() => appShell.activeModuleWorkspace)
 const module = computed(() => appShell.activeModule)
+const requirementAnalysisOpen = computed(
+  () =>
+    appShell.activeSubmoduleDetail?.moduleId === 'product' &&
+    appShell.activeSubmoduleDetail?.submoduleId === 'requirement_analysis'
+)
+const codingAgentOpen = computed(
+  () =>
+    appShell.activeSubmoduleDetail?.moduleId === 'development' &&
+    appShell.activeSubmoduleDetail?.submoduleId === 'coding_agent'
+)
 </script>
 
 <template>
-  <section class="workspace-layout module-workspace-layout">
+  <RequirementAnalysisWorkspace v-if="requirementAnalysisOpen" />
+  <CodingAgentWorkspace v-else-if="codingAgentOpen" />
+  <section v-else class="workspace-layout module-workspace-layout">
     <ProjectContextPanel />
 
     <section class="module-center panel-surface" aria-label="项目闭环模块">
@@ -42,6 +56,7 @@ const module = computed(() => appShell.activeModule)
           :submodule="submodule"
           :active="appShell.activeSubmodule?.submoduleId === submodule.submoduleId"
           @select="moduleId && appShell.selectSubmodule(moduleId, $event)"
+          @enter="moduleId && appShell.enterSubmodule(moduleId, $event)"
         />
       </section>
 

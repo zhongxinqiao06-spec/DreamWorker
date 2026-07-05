@@ -284,9 +284,9 @@ func defaultProviderCapabilities(providerType ProviderType) []string {
 	case ProviderOllama:
 		return []string{"chat", "tools"}
 	case ProviderAnthropic:
-		return []string{"chat", "tools", "vision", "json_schema"}
+		return []string{"chat", "tools", "vision", "image_generation", "json_schema"}
 	default:
-		return []string{"chat", "tools", "vision", "json_schema"}
+		return []string{"chat", "tools", "vision", "image_generation", "json_schema"}
 	}
 }
 
@@ -300,7 +300,7 @@ func providerSupportsStreaming(providerType ProviderType) bool {
 }
 
 func normalizeCapabilities(values []string) []string {
-	allowed := map[string]bool{"chat": true, "tools": true, "vision": true, "json_schema": true}
+	allowed := map[string]bool{"chat": true, "tools": true, "vision": true, "image_generation": true, "json_schema": true}
 	result := make([]string, 0, len(values))
 	seen := map[string]bool{}
 	for _, value := range values {
