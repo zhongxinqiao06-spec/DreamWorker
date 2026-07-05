@@ -266,6 +266,11 @@ select:focus-visible {
   color: var(--purple-2);
 }
 
+.nav-item[data-nav-id='home'] svg,
+.nav-item[data-nav-id='home'].active {
+  color: var(--purple);
+}
+
 .nav-item[data-nav-id='chat'] svg,
 .nav-item[data-nav-id='chat'].active {
   color: var(--blue);
@@ -1003,6 +1008,79 @@ h3,
 .diagnostics-card > svg,
 .section-title svg {
   color: var(--purple);
+}
+
+.home-hero {
+  background:
+    url('/aios/glass-orbit-corner.png') top right / min(34vw, 420px) auto no-repeat,
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(239, 246, 255, 0.72) 48%, rgba(237, 231, 255, 0.72)),
+    var(--surface);
+}
+
+.home-hero::before {
+  background:
+    linear-gradient(90deg, rgba(124, 58, 237, 0.08) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(37, 99, 235, 0.06) 1px, transparent 1px);
+}
+
+.orbit-core {
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.96), rgba(237, 231, 255, 0.72) 64%),
+    rgba(255, 255, 255, 0.86);
+  box-shadow:
+    0 0 0 18px rgba(124, 58, 237, 0.06),
+    0 0 0 42px rgba(37, 99, 235, 0.04),
+    0 24px 46px rgba(124, 58, 237, 0.16);
+}
+
+.orbit-chip,
+.home-metric-card,
+.home-guide-card,
+.home-pipeline-list article,
+.home-provider-list article,
+.home-capability-grid article,
+.home-capability-lanes article,
+.home-chart-card,
+.home-next-action {
+  border-color: rgba(148, 163, 184, 0.2);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: var(--shadow-soft);
+}
+
+.home-guide-card > span {
+  border-color: rgba(37, 99, 235, 0.18);
+  background: rgba(239, 246, 255, 0.82);
+  color: var(--blue);
+}
+
+.home-guide-card button,
+.home-next-action button {
+  border-color: rgba(148, 163, 184, 0.24);
+  background: rgba(255, 255, 255, 0.74);
+  color: var(--text);
+  box-shadow: var(--shadow-soft);
+}
+
+.home-token-panel {
+  border-color: rgba(37, 99, 235, 0.16);
+  background: rgba(239, 246, 255, 0.74);
+}
+
+.home-token-panel progress,
+.home-token-panel progress::-webkit-progress-bar {
+  background: rgba(226, 232, 240, 0.78);
+}
+
+.home-model-marquee span {
+  border-color: rgba(37, 99, 235, 0.16);
+  background: rgba(239, 246, 255, 0.8);
+  color: var(--blue);
+}
+
+.home-capability-lanes span {
+  border-color: rgba(37, 99, 235, 0.16);
+  background: rgba(239, 246, 255, 0.8);
+  color: var(--blue);
 }
 
 .command-palette {

@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppSidebar from './components/AppSidebar.vue'
 import ChatWorkspace from './components/ChatWorkspace.vue'
 import DiagnosticsWorkspace from './components/DiagnosticsWorkspace.vue'
+import HomeWorkspace from './components/HomeWorkspace.vue'
 import ModuleWorkspace from './components/modules/ModuleWorkspace.vue'
 import ProjectsWorkspace from './components/ProjectsWorkspace.vue'
 import ResourceCenter from './components/ResourceCenter.vue'
@@ -97,7 +98,8 @@ onBeforeUnmount(() => {
         </div>
       </Transition>
       <section class="workspace-slot">
-        <ChatWorkspace v-if="appShell.activePrimary === 'chat'" />
+        <HomeWorkspace v-if="appShell.activePrimary === 'home'" />
+        <ChatWorkspace v-else-if="appShell.activePrimary === 'chat'" />
         <ProjectsWorkspace v-else-if="appShell.activePrimary === 'projects'" />
         <ResourceCenter v-else-if="appShell.activePrimary === 'resources'" />
         <ModuleWorkspace v-else-if="appShell.activeModuleWorkspace" />
@@ -114,6 +116,7 @@ onBeforeUnmount(() => {
     >
       <div class="command-box">
         <strong>命令面板</strong>
+        <button type="button" @click="appShell.runCommand('home')">打开工作台首页</button>
         <button type="button" @click="appShell.runCommand('chat')">打开聊天工作台</button>
         <button type="button" @click="appShell.runCommand('projects')">打开项目配置</button>
         <button type="button" @click="appShell.runCommand('resources')">打开资源配置中心</button>

@@ -2,7 +2,13 @@ import type { ProjectModuleId, ProjectModuleStatus } from '../../../shared/dream
 
 export type ModuleWorkspaceId = ProjectModuleId
 export type PrimaryNavId =
-  'chat' | 'projects' | 'resources' | ModuleWorkspaceId | 'settings' | 'diagnostics'
+  | 'home'
+  | 'chat'
+  | 'projects'
+  | 'resources'
+  | ModuleWorkspaceId
+  | 'settings'
+  | 'diagnostics'
 export type ResourceTabId = 'providers' | 'extensions' | 'agents' | 'skills' | 'tools' | 'mcp'
 
 export type PrimaryNavItem = {
@@ -19,11 +25,12 @@ export const moduleWorkspaceIds: readonly ModuleWorkspaceId[] = [
 ]
 
 export const primaryNavItems: readonly PrimaryNavItem[] = [
+  { id: 'home', label: '首页', caption: '项目指引、模型与 Token 总览' },
   { id: 'chat', label: '聊天', caption: '普通 Agent 工作台' },
   { id: 'projects', label: '项目', caption: '新增、修改、删除与基础配置' },
   { id: 'resources', label: '资源', caption: '模型 / Agent / MCP' },
   { id: 'explore', label: '探索', caption: '机会、用户、竞品、证据' },
-  { id: 'product', label: '产品', caption: 'MVP、PRD、原型、蓝图' },
+  { id: 'product', label: '产品', caption: '需求、PRD、原型、蓝图' },
   { id: 'development', label: '开发', caption: '架构、成本、PR、测试' },
   { id: 'sales', label: '销售', caption: '定位、落地页、发布、反馈' },
   { id: 'settings', label: '设置', caption: '本地偏好与边界' },

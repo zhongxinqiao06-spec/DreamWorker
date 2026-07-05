@@ -696,7 +696,7 @@ export const useAppShellStore = defineStore('app-shell', {
   state: () => ({
     primaryNavItems,
     resourceTabs,
-    activePrimary: 'chat' as PrimaryNavId,
+    activePrimary: 'home' as PrimaryNavId,
     activeResourceTab: 'providers' as ResourceTabId,
     activeSubmoduleByModule: {} as Partial<Record<ModuleWorkspaceId, string>>,
     bootStatus: 'idle' as 'idle' | 'loading' | 'ready' | 'error',
@@ -935,6 +935,9 @@ export const useAppShellStore = defineStore('app-shell', {
       return JSON.stringify(createProjectDraft(activeProject)) !== JSON.stringify(state.projectDraft)
     },
     activeWorkspaceTitle: (state): string => {
+      if (state.activePrimary === 'home') {
+        return '工作台首页'
+      }
       if (state.activePrimary === 'chat') {
         return '普通 Agent 聊天工作台'
       }

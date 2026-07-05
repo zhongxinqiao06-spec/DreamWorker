@@ -6,6 +6,7 @@ import {
   Compass,
   FileText,
   FolderKanban,
+  House,
   Megaphone,
   MessageSquareText,
   Settings,
@@ -16,6 +17,7 @@ import { useAppShellStore, type PrimaryNavId } from '../stores/app-shell'
 const appShell = useAppShellStore()
 
 const icons: Record<PrimaryNavId, typeof MessageSquareText> = {
+  home: House,
   chat: MessageSquareText,
   projects: FolderKanban,
   resources: Boxes,
