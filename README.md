@@ -1,6 +1,6 @@
 # DreamWorker
 
-DreamWorker 是本地优先的 AI OS、Agent Runtime 和项目孵化桌面工作台。桌面壳使用 Electron + Vue，本地运行时已经收敛为 Electron Main 内嵌 Runtime。
+DreamWorker 是本地优先的 AI OS、Agent Runtime 和项目孵化桌面工作台。桌面壳使用 Electron + Vue，本地运行时已经收敛为 Electron Main 内嵌 Node Runtime。
 
 > DreamWorker 把一个想法推进成可执行、可追踪、可协作的 Agent 项目计划。
 
@@ -9,6 +9,7 @@ DreamWorker 是本地优先的 AI OS、Agent Runtime 和项目孵化桌面工作
 - Electron Main 在同一进程内创建 `apps/desktop/main/runtime`，不再启动独立 Runtime 子进程。
 - Renderer 只通过 typed `window.dreamworker.*` preload API 调用能力，不直接访问 token、文件系统或原始 IPC。
 - Main 负责桌面生命周期、内嵌 Runtime、IPC bridge、流式事件转发和本地安全边界。
+- Main Runtime 是 TypeScript/Node 服务层，按 `bootstrap`、`router`、`kernel`、`services`、`store` 拆分，生产路径不再依赖 Go Engine 或本机 HTTP 中转。
 - Main Runtime 负责 providers、profiles、settings、extensions、agents、skills、tools、MCP、projects、requirements、chat、coding agents、runtime diagnostics 和本地 SQLite 持久化。
 - 旧 `workspace.db` 继续按 `workspace_state.payload` snapshot 读取，provider、project、chat、module 数据可跨运行时迁移保留。
 - UI 层所有面向用户可见的文字必须使用中文，协议名、字段名和 Provider 名称保留原文。
@@ -35,14 +36,13 @@ Electron Desktop
   `-- Main: lifecycle, embedded Runtime, IPC bridge, stream event proxy
 
 Main Runtime
-  |-- In-memory route dispatch and stream generators
-  |-- Workspace Store backed by SQLite workspace_state snapshot
-  |-- Model provider/profile resources
-  |-- Project/module/local directory management
-  |-- Requirements, chat, and coding services
-  |-- Coding SDK runtime: Claude Agent, Codex, OpenCode
-  |-- Extension and MCP management
-  `-- Runtime diagnostics
+  |-- bootstrap: runtime context and assembly
+  |-- router: typed request routes and stream routes
+  |-- kernel: lifecycle, cancellation, trace and runtime errors
+  |-- services: projects, requirements, chat, coding agents and extensions
+  |-- store: SQLite workspace_state snapshot persistence
+  |-- coding: Claude Agent, Codex and OpenCode SDK runtime
+  `-- diagnostics: ping, runtime status and smoke checks
 ```
 
 ## 常用命令
@@ -79,6 +79,6 @@ Windows 安装包包含：
 
 - `.agent/`：skill source 和 capability resources。
 - `apps/desktop/`：Electron + Vue 桌面应用。
-- `apps/desktop/main/runtime/`：Main 内嵌 Runtime，按 coding、store、shared 模块分层。
+- `apps/desktop/main/runtime/`：Main 内嵌 Node Runtime，按 kernel、router、services、store、shared 模块分层。
 - `scripts/`：仓库脚本和打包辅助。
 - `specs/`：版本化 JSON schemas、fixtures 和 generated contracts。

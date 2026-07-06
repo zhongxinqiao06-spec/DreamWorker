@@ -560,11 +560,11 @@ const architectureCards: Array<{
   },
   {
     icon: Cpu,
-    title: 'Main Runtime 本地运行时',
+    title: 'Node Main Runtime 本地运行时',
     details: [
-      '随桌面主包发布，Main 进程内直接调度',
-      '不再单独分包、不走本机 HTTP 中转',
-      '统一承载模型、Agent、Skill、Tool、MCP 和项目空间'
+      'TypeScript 服务层随桌面主包发布',
+      '按 bootstrap、router、kernel、services、store 分层',
+      '生产路径不再依赖 Go Engine 或本机 HTTP 中转'
     ]
   },
   {
@@ -572,8 +572,8 @@ const architectureCards: Array<{
     title: '内置 SDK 能力层',
     details: [
       'Claude Agent、Codex、OpenCode SDK 随安装包预置',
-      'OpenCode 由 Main Runtime 管理 server、session、event 和 auth',
-      '9Router/OpenAI-compatible 继续作为模型供应商底座'
+      'Coding Agent 固化为 Runtime service，文件根限定 workspace/code',
+      'OpenCode server、session、event 和 auth 由 Node Runtime 托管'
     ]
   }
 ]
@@ -951,11 +951,11 @@ const sourceLinks = [
             <CircuitBoard :size="16" />
             整体架构
           </p>
-          <h2>Electron + Vue + Main Runtime，兼容生态且本地可控</h2>
+          <h2>Electron + Vue + Node Main Runtime，兼容生态且本地可控</h2>
           <p>
-            前端贴近国内工程习惯，Main Runtime 作为 Electron Main 内嵌能力层承担长驻 AI OS
-            运行时，直接调度 Workspace Store、Coding Agent 和 SDK 能力，不再依赖独立 engine 包或本机
-            HTTP 通信。
+            前端贴近国内工程习惯，Node Main Runtime 作为 Electron Main 内嵌能力层承担长驻 AI OS
+            运行时，直接调度 router、kernel、services、Workspace Store、Coding Agent 和 SDK
+            能力；生产路径不再依赖 Go Engine、独立 engine 包或本机 HTTP 通信。
           </p>
         </div>
         <div class="architecture-layout">
@@ -970,11 +970,11 @@ const sourceLinks = [
             </div>
             <div class="stack-layer featured">
               <span>AI OS</span>
-              <strong>Main Runtime / Direct Dispatch / Workspace Store</strong>
+              <strong>Node Main Runtime / Router / Kernel / Services / Store</strong>
             </div>
             <div class="stack-layer">
               <span>能力层</span>
-              <strong>Agent / Skill / Tool / MCP / Node Extensions</strong>
+              <strong>Coding Agent / OpenCode / Claude Agent / Codex / MCP</strong>
             </div>
           </div>
           <div class="architecture-grid">
