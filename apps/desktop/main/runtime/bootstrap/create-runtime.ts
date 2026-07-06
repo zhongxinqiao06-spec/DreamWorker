@@ -54,6 +54,7 @@ export function createRuntimeContext(configDir?: string): RuntimeContext {
   const chat = new ChatStreamService(chatService)
   const lifecycle = new RuntimeLifecycle()
 
+  lifecycle.add({ stop: () => extensions.stopManagedProcess() })
   lifecycle.add({ stop: () => store.close() })
   lifecycle.add({ stop: () => coding.dispose() })
 

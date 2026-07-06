@@ -20,6 +20,7 @@
     "@openai/codex-sdk": "0.142.5",
     "@opencode-ai/cli": "1.17.13",
     "@opencode-ai/sdk": "1.17.13",
+    "9router": "0.5.18",
     "echarts": "^6.1.0",
     "lucide-vue-next": "^0.577.0",
     "pinia": "^3.0.0",
@@ -46,7 +47,8 @@
       "node_modules/@opencode-ai/**",
       "node_modules/@anthropic-ai/**",
       "node_modules/@openai/**",
-      "node_modules/@ai-sdk/**"
+      "node_modules/@ai-sdk/**",
+      "node_modules/9router/**"
     ],
     "asar": true,
     "win": {

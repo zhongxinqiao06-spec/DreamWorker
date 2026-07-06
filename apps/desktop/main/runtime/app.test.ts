@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createDreamWorkerRuntime, type DreamWorkerRuntime } from './app'
-import type { ChatStreamEvent, Project } from '../../shared/dreamworker-api'
+import type {
+  ChatStreamEvent,
+  ExtensionSpec,
+  ExtensionStatus,
+  Project
+} from '../../shared/dreamworker-api'
 
 const runtimes: DreamWorkerRuntime[] = []
 
@@ -54,6 +59,28 @@ describe('main embedded runtime', () => {
         body: { projectId: project.projectId }
       })
     ).resolves.toEqual(expect.objectContaining({ status: 'valid' }))
+  })
+
+  it('reports 9Router extension status with the renderer-facing id and dashboard url', async () => {
+    const runtime = createTestRuntime()
+    const extensions = await runtime.request<ExtensionSpec[]>('/extensions')
+    const status = await runtime.request<ExtensionStatus>('/extensions/status', {
+      method: 'POST',
+      body: { extensionId: 'extension_9router' }
+    })
+
+    expect(extensions[0]).toEqual(
+      expect.objectContaining({
+        extensionId: 'extension_9router',
+        health: expect.objectContaining({ dashboardURL: 'http://127.0.0.1:20128' })
+      })
+    )
+    expect(status).toEqual(
+      expect.objectContaining({
+        extensionId: 'extension_9router',
+        dashboardURL: 'http://127.0.0.1:20128'
+      })
+    )
   })
 
   it('streams chat events directly through the runtime callback path', async () => {

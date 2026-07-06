@@ -11,6 +11,7 @@ describe('main window security options', () => {
     expect(options.webPreferences?.contextIsolation).toBe(true)
     expect(options.webPreferences?.nodeIntegration).toBe(false)
     expect(options.webPreferences?.sandbox).toBe(true)
+    expect(options.webPreferences?.webviewTag).toBe(true)
   })
 
   it('opens wide enough for the three-column workspace by default', () => {

@@ -595,19 +595,19 @@ function createEmptyContextBudget(): ContextBudgetReport {
 function createDefaultAppSettings(): AppSettings {
   return {
     enableNineRouterIntegration: true,
-    nineRouterRunMode: 'external',
-    nineRouterBaseURL: 'http://localhost:20128/v1',
-    nineRouterDashboardURL: 'http://localhost:20128',
-    nineRouterDefaultModel: 'kr/claude-sonnet-4.5',
+    nineRouterRunMode: 'managed',
+    nineRouterBaseURL: 'http://127.0.0.1:20128/v1',
+    nineRouterDashboardURL: 'http://127.0.0.1:20128',
+    nineRouterDefaultModel: 'deepseek-v4-flash',
     nineRouterAutoDetectOnStart: true,
-    nineRouterManagedAutoStart: false,
-    nineRouterManagedAutoRestart: false,
-    nineRouterManagedInstallVersion: 'latest',
+    nineRouterManagedAutoStart: true,
+    nineRouterManagedAutoRestart: true,
+    nineRouterManagedInstallVersion: '0.5.18',
     nineRouterManagedPackageName: '9router',
     nineRouterManagedCommand: '9router',
     nineRouterManagedWorkDir: '',
     nineRouterManagedLogDir: '',
-    nineRouterManagedTimeoutMs: 30000,
+    nineRouterManagedTimeoutMs: 15000,
     allowNineRouterAsFreeRoute: true,
     allowAgentsUseNineRouter: true
   }
@@ -785,7 +785,7 @@ export const useAppShellStore = defineStore('app-shell', {
     activeExtensionStatus: (state): ExtensionStatus | undefined =>
       state.extensionStatuses[state.activeExtensionId],
     nineRouterStatus: (state): ExtensionStatus | undefined =>
-      state.extensionStatuses.extension_9router,
+      state.extensionStatuses.extension_9router ?? state.extensionStatuses['9router'],
     chatSelectableProviders: (state): SafeModelProvider[] =>
       state.providers.filter(
         (provider) =>

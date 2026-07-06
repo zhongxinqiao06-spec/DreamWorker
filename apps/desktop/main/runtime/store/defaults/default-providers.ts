@@ -56,7 +56,7 @@ export function createDefaultProviders(timestamp: string): DefaultProviderSeed {
         providerId: 'provider_9router_local',
         providerType: 'openai_compatible',
         displayName: '9Router 本地模型路由',
-        baseURL: 'http://127.0.0.1:9399/v1',
+        baseURL: 'http://127.0.0.1:20128/v1',
         organization: null,
         project: null,
         defaultModel: process.env.NINE_ROUTER_DEFAULT_MODEL || deepseekModel,

@@ -23,7 +23,8 @@ export function createMainWindowOptions(
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      webviewTag: true
     }
   }
   if (iconPath) {

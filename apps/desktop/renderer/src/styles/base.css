@@ -2779,7 +2779,8 @@ button:disabled {
   background: #ffffff;
 }
 
-.extension-console-frame iframe {
+.extension-console-frame iframe,
+.extension-console-frame webview {
   display: block;
   width: 100%;
   height: 100%;

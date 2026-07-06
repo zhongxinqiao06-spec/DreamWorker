@@ -84,6 +84,9 @@ const extensionConsoleUrl = computed(() =>
     appShell.nineRouterStatus?.dashboardURL || appShell.settings.nineRouterDashboardURL
   )
 )
+const extensionConsoleReady = computed(
+  () => appShell.nineRouterStatus?.healthStatus === 'connected'
+)
 const providerApiKeyPlaceholder = computed(
   () => appShell.activeProvider?.maskedKey ?? '留空保留当前密钥，保存后只显示脱敏值'
 )
@@ -130,7 +133,7 @@ function isLoopbackHost(hostname: string): boolean {
 }
 
 function normalizeDashboardUrl(value: string): string {
-  const trimmed = value.trim() || 'http://localhost:20128'
+  const trimmed = value.trim() || 'http://127.0.0.1:20128'
   try {
     const url = new URL(trimmed)
     if (url.protocol === 'https:' && isLoopbackHost(url.hostname)) {
@@ -147,6 +150,15 @@ function normalizeDashboardUrl(value: string): string {
 
 async function openExtensionConsole(): Promise<void> {
   try {
+    await appShell.refreshExtensionStatus()
+    if (!extensionConsoleReady.value) {
+      appShell.showResourceNotice(
+        appShell.nineRouterStatus?.lastErrorMessage ||
+          `9Router 控制台未连接：${extensionConsoleUrl.value}`,
+        'error'
+      )
+      return
+    }
     const result = await window.dreamworker.system.openExternal(extensionConsoleUrl.value)
     appShell.showResourceNotice(
       result.ok
@@ -710,8 +722,8 @@ async function copyProviderApiKey(): Promise<void> {
               </div>
 
               <p class="form-hint">
-                受管模式会使用本机 Node/npm 在 DreamWorker 拓展目录安装并启动 9Router。DreamWorker
-                只管理自己启动的进程，并且只通过 OpenAI 兼容接口访问 9Router。
+                受管模式会使用 DreamWorker 内置的 9Router 包启动本地控制台，不在运行时执行 npm
+                安装。DreamWorker 只管理自己启动的进程，并且只通过 OpenAI 兼容接口访问 9Router。
               </p>
               <p class="form-hint">{{ appShell.extensionActionStatus }}</p>
 
@@ -745,12 +757,17 @@ async function copyProviderApiKey(): Promise<void> {
         </template>
 
         <section v-else class="extension-console-panel" aria-label="9Router Web 控制台预览">
+          <div v-if="!extensionConsoleReady" class="extension-console-empty">
+            <strong>9Router 控制台未连接</strong>
+            <span>{{ appShell.nineRouterStatus?.lastErrorMessage || extensionConsoleUrl }}</span>
+          </div>
           <div class="extension-console-frame">
-            <iframe
+            <webview
               :key="`${extensionConsoleUrl}-${extensionConsoleRevision}`"
               :src="extensionConsoleUrl"
               title="9Router Web 控制台"
-              sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
+              allowpopups
+              webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes"
             />
           </div>
         </section>
@@ -1199,3 +1216,24 @@ async function copyProviderApiKey(): Promise<void> {
     </section>
   </section>
 </template>
+
+<style scoped>
+.extension-console-panel {
+  min-height: 640px;
+  position: relative;
+}
+
+.extension-console-empty {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 8px;
+  color: #64748b;
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 14px 16px;
+}
+
+.extension-console-empty strong {
+  color: #1f2a44;
+}
+</style>

@@ -24,21 +24,65 @@ if (result.status !== 0) {
   )
 }
 
+const nineRouterPackageDir = dirname(require.resolve('9router/package.json'))
+const nineRouterCliPath = join(nineRouterPackageDir, 'cli.js')
+const nineRouterServerPath = resolveNineRouterServer(nineRouterPackageDir)
+const nineRouterRuntime = require(join(nineRouterPackageDir, 'hooks', 'sqliteRuntime.js'))
+nineRouterRuntime.ensureSqliteRuntime?.({ silent: true })
+const nineRouterEnv = nineRouterRuntime.buildEnvWithRuntime?.(process.env) ?? process.env
+const nineRouterCommand = {
+  command: process.execPath,
+  args: [nineRouterCliPath, '--version'],
+  displayPath: nineRouterCliPath
+}
+const nineRouterResult = spawnSync(nineRouterCommand.command, nineRouterCommand.args, {
+  encoding: 'utf8',
+  timeout: 10000,
+  windowsHide: true
+})
+
+if (nineRouterResult.status !== 0) {
+  throw new Error(
+    nineRouterResult.stderr.trim() ||
+      nineRouterResult.stdout.trim() ||
+      '9Router CLI failed to report version'
+  )
+}
+
 console.log(
   JSON.stringify(
     {
       ok: true,
       runtime: 'desktop-main-runtime',
-      sdkImports: ['claude-agent', 'codex', 'opencode', 'openai-compatible'],
+      sdkImports: ['claude-agent', 'codex', 'opencode', 'openai-compatible', '9router'],
       opencode: {
         command: command.displayPath,
         version: result.stdout.trim()
+      },
+      nineRouter: {
+        cliCommand: nineRouterCommand.displayPath,
+        serverCommand: nineRouterServerPath,
+        version: nineRouterResult.stdout.trim(),
+        runtimeNodePath: nineRouterEnv.NODE_PATH ?? ''
       }
     },
     null,
     2
   )
 )
+
+function resolveNineRouterServer(packageDir) {
+  const appDir = join(packageDir, 'app')
+  const customServerPath = join(appDir, 'custom-server.js')
+  if (existsSync(customServerPath)) {
+    return customServerPath
+  }
+  const serverPath = join(appDir, 'server.js')
+  if (existsSync(serverPath)) {
+    return serverPath
+  }
+  throw new Error('9Router bundled server was not found in desktop main package dependencies')
+}
 
 function resolveOpenCodeCommand(cliPackageDir) {
   const executable = resolveOpenCodeExecutable(cliPackageDir)
