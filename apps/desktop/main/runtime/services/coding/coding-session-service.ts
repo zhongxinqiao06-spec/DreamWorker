@@ -2,7 +2,7 @@ import { badRequest, notFound } from '../../kernel/errors'
 import { asString, nowISO } from '../../shared/util'
 import type { CodingSession, JsonRecord } from '../../types'
 import type { WorkspaceStore } from '../../store/workspace-store'
-import type { ProviderService } from '../models/provider-service'
+import type { ModelGateway } from '../models/model-gateway'
 import type { ProjectDirectoryService } from '../projects/project-directory-service'
 import { normalizeEngine } from './engines/coding-engine'
 
@@ -11,7 +11,7 @@ export class CodingSessionService {
 
   constructor(
     private readonly store: WorkspaceStore,
-    private readonly providers: ProviderService,
+    private readonly models: ModelGateway,
     private readonly projectDirectory: ProjectDirectoryService
   ) {}
 
@@ -21,7 +21,7 @@ export class CodingSessionService {
       throw badRequest('BAD_REQUEST', 'missing projectId', 'select a project')
     }
     const engineId = normalizeEngine(asString(input.engineId))
-    const provider = this.providers.providerForCoding(
+    const provider = this.models.resolveProviderForCoding(
       asString(input.providerId),
       asString(input.model)
     )

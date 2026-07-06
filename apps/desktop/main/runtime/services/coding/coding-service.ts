@@ -1,5 +1,6 @@
 import type { WorkspaceStore } from '../../store/workspace-store'
 import type { CodingSession, CodingStreamEvent, DeleteResult, JsonRecord } from '../../types'
+import { ModelGateway } from '../models/model-gateway'
 import { ProviderService } from '../models/provider-service'
 import { ProjectDirectoryService } from '../projects/project-directory-service'
 import { ProviderRepository } from '../../store/repositories/provider-repository'
@@ -21,7 +22,7 @@ export class CodingService {
 
   constructor(
     store: WorkspaceStore,
-    providers?: ProviderService,
+    models?: ModelGateway,
     projectDirectory?: ProjectDirectoryService
   )
   constructor(
@@ -32,7 +33,7 @@ export class CodingService {
   )
   constructor(
     first: WorkspaceStore | CodingSessionService,
-    second?: ProviderService | CodingEngineRegistry,
+    second?: ModelGateway | CodingEngineRegistry,
     third?: ProjectDirectoryService | CodeWorkspaceService,
     streams?: CodingStreamService
   ) {
@@ -50,10 +51,10 @@ export class CodingService {
     }
 
     const store = first
-    const providers =
-      second instanceof ProviderService
+    const models =
+      second instanceof ModelGateway
         ? second
-        : new ProviderService(new ProviderRepository(store))
+        : new ModelGateway(new ProviderService(new ProviderRepository(store)))
     const projectDirectory =
       third instanceof ProjectDirectoryService
         ? third
@@ -62,10 +63,10 @@ export class CodingService {
     const git = new GitStatusService()
     const tree = new FileTreeService(roots, git)
     const reader = new FileReadService(roots)
-    this.sessions = new CodingSessionService(store, providers, projectDirectory)
+    this.sessions = new CodingSessionService(store, models, projectDirectory)
     this.engines = new CodingEngineRegistry()
     this.files = new CodeWorkspaceService(roots, tree, reader, git)
-    this.streams = new CodingStreamService(store, providers, this.sessions, this.engines)
+    this.streams = new CodingStreamService(store, models, this.sessions, this.engines)
   }
 
   dispose(): void {

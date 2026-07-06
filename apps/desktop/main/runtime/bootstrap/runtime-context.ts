@@ -7,6 +7,7 @@ import type { ToolConfigService } from '../services/agents/tool-config-service'
 import type { ChatService } from '../services/chat/chat-service'
 import type { ChatStreamService } from '../services/chat/chat-stream-service'
 import type { ExtensionService } from '../services/extensions/extension-service'
+import type { ModelGateway } from '../services/models/model-gateway'
 import type { ProfileService } from '../services/models/profile-service'
 import type { ProviderService } from '../services/models/provider-service'
 import type { ProjectDirectoryService } from '../services/projects/project-directory-service'
@@ -22,6 +23,7 @@ export type RuntimeContext = {
   readonly store: WorkspaceStore
   readonly providers: ProviderService
   readonly profiles: ProfileService
+  readonly modelGateway: ModelGateway
   readonly settings: SettingsService
   readonly projects: ProjectService
   readonly projectModules: ProjectModuleService

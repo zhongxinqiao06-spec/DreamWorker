@@ -573,7 +573,7 @@ const architectureCards: Array<{
     details: [
       'Router 只调用 service，不直接碰 Workspace Store',
       'Provider、Project、Chat、Agent、Requirement 已拆出领域服务',
-      'Store 专注 SQLite snapshot、迁移兼容和 legacy wrapper'
+      'Store 专注 SQLite snapshot、save、close 和 id 生成'
     ]
   },
   {

@@ -7,6 +7,7 @@ import { ToolConfigService } from '../services/agents/tool-config-service'
 import { ChatService } from '../services/chat/chat-service'
 import { ChatStreamService } from '../services/chat/chat-stream-service'
 import { ExtensionService } from '../services/extensions/extension-service'
+import { ModelGateway } from '../services/models/model-gateway'
 import { ProfileService } from '../services/models/profile-service'
 import { ProviderService } from '../services/models/provider-service'
 import { ProjectDirectoryService } from '../services/projects/project-directory-service'
@@ -33,6 +34,7 @@ export function createRuntimeContext(configDir?: string): RuntimeContext {
   const store = new WorkspaceStore(configDir)
   const providers = new ProviderService(new ProviderRepository(store))
   const profiles = new ProfileService(new ProfileRepository(store))
+  const modelGateway = new ModelGateway(providers)
   const settings = new SettingsService(new SettingsRepository(store))
   const projectRepository = new ProjectRepository(store)
   const projectModuleRepository = new ProjectModuleRepository(store)
@@ -48,7 +50,7 @@ export function createRuntimeContext(configDir?: string): RuntimeContext {
   const mcp = new McpService(new McpRepository(store))
   const extensions = new ExtensionService(settings, store.configDir)
   const chatService = new ChatService(new ChatRepository(store))
-  const coding = new CodingService(store, providers, projectDirectory)
+  const coding = new CodingService(store, modelGateway, projectDirectory)
   const chat = new ChatStreamService(chatService)
   const lifecycle = new RuntimeLifecycle()
 
@@ -59,6 +61,7 @@ export function createRuntimeContext(configDir?: string): RuntimeContext {
     store,
     providers,
     profiles,
+    modelGateway,
     settings,
     projects,
     projectModules,

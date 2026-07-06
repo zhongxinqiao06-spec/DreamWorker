@@ -11,7 +11,7 @@ DreamWorker 是本地优先的 AI OS、Agent Runtime 和项目孵化桌面工作
 - Main 负责桌面生命周期、内嵌 Runtime、IPC bridge、流式事件转发和本地安全边界。
 - Main Runtime 是 TypeScript/Node 服务层，按 `bootstrap`、`router`、`kernel`、`services`、`store/repositories` 拆分，生产路径不再依赖 Go Engine 或本机 HTTP 中转。
 - Main Runtime 负责 providers、profiles、settings、extensions、agents、skills、tools、MCP、projects、requirements、chat、coding agents、runtime diagnostics 和本地 SQLite 持久化。
-- Router 只调用 service，service 通过 repository 读写 Workspace snapshot，Store 只保留 SQLite、snapshot shape、迁移兼容和少量 legacy wrapper。
+- Router 只调用 service，service 通过 repository 读写 Workspace snapshot，Store 只保留 SQLite、snapshot shape、save、close 和 id 生成。
 - 旧 `workspace.db` 继续按 `workspace_state.payload` snapshot 读取，provider、project、chat、module 数据可跨运行时迁移保留。
 - UI 层所有面向用户可见的文字必须使用中文，协议名、字段名和 Provider 名称保留原文。
 
