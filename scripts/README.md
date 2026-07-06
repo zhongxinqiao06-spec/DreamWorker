@@ -1,57 +1,38 @@
 # DreamWorker Scripts
 
-`scripts/` 放仓库级工程脚本，主要服务 contract generation、CI gate、安全 smoke、真实模型 smoke 和 Windows 打包。脚本默认从仓库根目录执行，优先保持可定位、可复现、不会在 `--check` 模式悄悄改文件。
+`scripts/` 存放仓库级工程脚本，用于契约生成、质量检查、smoke test 和 Windows 打包。
 
 ## 当前脚本
 
-- `generate-contracts.mjs`：从 `specs/*.schema.json` 生成 TypeScript contracts 和 Go runtime contract subset；支持 `--check`。
-- `validate-specs.mjs`：校验 JSON Schema 与 `specs/fixtures/valid|invalid` 样例。
-- `format-check.mjs`：收集仓库内受控的 `.md/.json/.ts/.vue/.css/.html/.mjs/.yaml` 等文件并运行 Prettier check。
-- `go-fmt-check.mjs`：检查 `engine/` 下 Go 文件是否符合 gofmt。
-- `security-smoke.mjs`：检查 Renderer/Main/Preload 安全边界，防止 Node、secret、raw IPC 暴露到 Renderer。
-- `build-engine.mjs`：构建 `engine/bin/dreamworker-engine.exe` 或当前平台对应的 Engine 可执行文件，供 Electron 打包。
-- `deepseek-smoke.mjs`：真实模型 smoke，可读取 `DEEPSEEK_API_KEY`、`DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL` 或 `.env.local`。
+- `generate-contracts.mjs`：从 `specs/*.schema.json` 生成 TypeScript contracts。
+- `validate-specs.mjs`：校验 JSON Schema fixtures。
+- `format-check.mjs`：对仓库文本资产执行 Prettier 检查。
+- `security-smoke.mjs`：校验 Renderer/Main/Preload 安全边界。
+- `deepseek-smoke.mjs`：通过 `DEEPSEEK_API_KEY`、`DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL` 或 `.env.local` 运行真实模型 smoke。
+- `check-desktop-runtime.mjs`：校验 desktop 主包内置的 Claude Agent SDK、Codex SDK、OpenCode SDK/CLI 和 OpenAI-compatible adapter。
 
-## 根目录命令
+## 根命令
 
-- `npm run dev`：启动 Electron 开发环境。
-- `npm run lint`：ESLint 检查 `apps/desktop`、`scripts` 和 `eslint.config.js`。
-- `npm run format:check`：Prettier 格式检查。
-- `npm run specs:validate`：校验 schemas 与 fixtures。
-- `npm run specs:generate`：生成 contracts。
-- `npm run specs:check`：先检查 generated contracts 是否最新，再运行 specs validate。
-- `npm run typecheck`：运行 desktop web/node TypeScript 类型检查。
+- `npm run dev`：启动 Electron dev，Main 在进程内创建 Runtime。
+- `npm run lint`：检查 desktop 和 script 代码。
+- `npm run format:check`：执行 Prettier 检查。
+- `npm run specs:check`：检查 generated contracts 是否最新，并校验 specs。
+- `npm run runtime:check`：校验 Main Runtime SDK 依赖和 OpenCode CLI。
+- `npm run typecheck`：检查 desktop TypeScript。
 - `npm test`：运行 desktop Vitest。
-- `npm run go:fmt`：对 `engine/` 执行 gofmt 写入。
-- `npm run go:fmt:check`：只检查 gofmt，不写文件。
-- `npm run go:test`：运行 `go test ./...`。
-- `npm run go:vet`：运行 `go vet ./...`。
-- `npm run go:build`：运行 `go build ./...`，不产出 packaged exe。
-- `npm run go:build:exe`：生成 Engine exe。
-- `npm run package:engine`：同 `go:build:exe`，供打包语义使用。
-- `npm run package:win`：完整 build 后输出 Windows unpacked package。
-- `npm run security:smoke`：安全边界 smoke。
-- `npm run llm:smoke`：DeepSeek 最小连通 smoke。
-- `npm run llm:long-task`：DeepSeek 长任务 QA smoke。
-- `npm run build`：typecheck + Electron build + Go build + Engine exe。
-- `npm run ci`：完整门禁：lint、format、specs、typecheck、Vitest、gofmt、Go test/vet、安全 smoke。
+- `DREAMWORKER_OPENCODE_SMOKE=1 npm --workspace @dreamworker/desktop run test -- main/runtime/opencode-smoke.test.ts`：开启 OpenCode Main Runtime 端到端 smoke。
+- `npm run build`：执行 typecheck，并构建 Electron。
+- `npm run package:win`：构建并打包 Windows 安装包。
+- `npm run ci`：运行 lint、format、specs、typecheck、tests、runtime check 和 security smoke。
 
-## 环境变量
+## Runtime 打包
 
-`deepseek-smoke.mjs` 支持直接读取环境变量，也会读取根目录 `.env.local`：
+生产应用不再携带独立 Runtime 包。Main Runtime 随 `apps/desktop/main/runtime` 编译进 Electron Main，桌面进程直接调用服务对象，不经过本机 HTTP。
 
-```text
-DEEPSEEK_API_KEY=...
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-v4-flash
-```
+安装包重点校验：
 
-`.env.local` 不应提交；脚本错误输出会脱敏 provider error，只保留 message/type/code。
+- desktop production dependencies 中包含三家编码 SDK。
+- OpenCode CLI native assets 通过 `asarUnpack` 解包后可执行。
+- `.agent` 能力资源通过 `extraResources` 分发。
 
-## 约束
-
-- 生成类脚本必须支持 `--check`，CI 中不能悄悄改文件。
-- 脚本输出错误要短、明确、可定位。
-- 涉及 secret 的 smoke 不打印原始值，只检查泄露模式或输出脱敏错误。
-- Windows 打包默认包含 `engine/bin/dreamworker-engine.exe` 和根目录 `.agent`。
-- 脚本应优先使用标准库和根目录 `devDependencies`，避免为一次性校验引入新 runtime。
+编码 Agent 依赖的 Claude Agent SDK、Codex SDK、OpenCode SDK/CLI 和 OpenAI-compatible adapter 必须在打包阶段安装并校验成功，用户运行时不再下载 npm 包。

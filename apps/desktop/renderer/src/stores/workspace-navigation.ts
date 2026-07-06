@@ -2,13 +2,7 @@ import type { ProjectModuleId, ProjectModuleStatus } from '../../../shared/dream
 
 export type ModuleWorkspaceId = ProjectModuleId
 export type PrimaryNavId =
-  | 'home'
-  | 'chat'
-  | 'projects'
-  | 'resources'
-  | ModuleWorkspaceId
-  | 'settings'
-  | 'diagnostics'
+  'home' | 'chat' | 'projects' | 'resources' | ModuleWorkspaceId | 'settings' | 'diagnostics'
 export type ResourceTabId = 'providers' | 'extensions' | 'agents' | 'skills' | 'tools' | 'mcp'
 
 export type PrimaryNavItem = {

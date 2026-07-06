@@ -1,9 +1,9 @@
 import { app, BrowserWindow, session } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { join } from 'node:path'
-import { startEngineDaemon, type EngineDaemon } from './engine-daemon'
 import { openExternalHttpUrl } from './external-url'
 import { registerRuntimeIpcHandlers } from './runtime-ipc'
+import { createDreamWorkerRuntime, type DreamWorkerRuntime } from './runtime/app'
 import { createRuntimePingStubResponse } from './runtime-ping'
 import { createMainWindowOptions } from './window-options'
 
@@ -85,54 +85,53 @@ function createMainWindow(): void {
   registerE2ESmoke(mainWindow)
 }
 
-let engineDaemon: EngineDaemon | null = null
+let runtime: DreamWorkerRuntime | null = null
 
-function startEngine(): void {
+function startRuntime(): void {
   try {
-    engineDaemon = startEngineDaemon()
-    engineDaemon.ready.catch(() => undefined)
+    runtime = createDreamWorkerRuntime()
   } catch {
-    engineDaemon = null
+    runtime = null
   }
 }
 
 async function pingRuntime() {
-  if (!engineDaemon) {
+  if (!runtime) {
     return createRuntimePingStubResponse()
   }
 
   try {
-    return await engineDaemon.ping()
+    return runtime.ping()
   } catch {
     return createRuntimePingStubResponse()
   }
 }
 
-async function requestEngine<T>(
+async function requestRuntime<T>(
   path: string,
   init?: {
     readonly method?: 'GET' | 'POST'
     readonly body?: unknown
   }
 ): Promise<T> {
-  if (!engineDaemon) {
-    throw new Error('Go Engine is not connected.')
+  if (!runtime) {
+    throw new Error('Main 内嵌 Runtime 尚未连接。')
   }
-  return engineDaemon.request<T>(path, init)
+  return runtime.request<T>(path, init)
 }
 
-async function streamEngine(
+async function streamRuntime(
   path: string,
   init: {
     readonly body: unknown
     readonly streamId: string
   },
-  onEvent: Parameters<NonNullable<EngineDaemon['stream']>>[2]
+  onEvent: Parameters<NonNullable<DreamWorkerRuntime['stream']>>[2]
 ) {
-  if (!engineDaemon) {
-    throw new Error('Go Engine streaming is not connected.')
+  if (!runtime) {
+    throw new Error('Main 内嵌 Runtime streaming 尚未连接。')
   }
-  return engineDaemon.stream(path, init, onEvent)
+  return runtime.stream(path, init, onEvent)
 }
 
 function registerE2ESmoke(mainWindow: BrowserWindow): void {
@@ -182,9 +181,9 @@ function registerE2ESmoke(mainWindow: BrowserWindow): void {
 
 void app.whenReady().then(() => {
   electronApp.setAppUserModelId('dev.dreamworker.desktop')
-  startEngine()
-  registerRuntimeIpcHandlers(pingRuntime, requestEngine, streamEngine, (streamId) =>
-    engineDaemon?.cancelStream(streamId)
+  startRuntime()
+  registerRuntimeIpcHandlers(pingRuntime, requestRuntime, streamRuntime, (streamId) =>
+    runtime?.cancelStream(streamId)
   )
 
   app.on('browser-window-created', (_, window) => {
@@ -201,8 +200,8 @@ void app.whenReady().then(() => {
 })
 
 app.on('before-quit', () => {
-  engineDaemon?.stop()
-  engineDaemon = null
+  runtime?.stop()
+  runtime = null
 })
 
 app.on('window-all-closed', () => {

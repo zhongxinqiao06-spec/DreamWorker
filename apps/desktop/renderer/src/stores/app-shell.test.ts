@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   DreamWorkerApi,
   Project,
-  ProjectDirectoryCheck
+  ProjectDirectoryCheck,
+  ProjectModule,
+  ProjectSubmodule
 } from '../../../shared/dreamworker-api'
 import {
   ALL_MODEL_ROUTE_SOURCE,
@@ -41,6 +43,78 @@ function projectWorkspaceDefaults() {
       allowShellExecution: false,
       allowNetworkTools: true
     }
+  }
+}
+
+function createExploreSubmodule(
+  input: Pick<ProjectSubmodule, 'submoduleId' | 'displayName' | 'summary' | 'nextBestAction'> & {
+    readonly status?: ProjectSubmodule['status']
+    readonly artifacts?: readonly string[]
+  }
+): ProjectSubmodule {
+  return {
+    projectId: 'project_001',
+    moduleId: 'explore',
+    submoduleId: input.submoduleId,
+    displayName: input.displayName,
+    status: input.status ?? 'idle',
+    summary: input.summary,
+    defaultAgents: ['agent_general_assistant'],
+    enabledSkills: ['skill_opportunity_scan'],
+    enabledTools: ['tool_model_generate_stub'],
+    outputArtifacts: input.artifacts ?? ['dream_brief.md'],
+    nextBestAction: input.nextBestAction,
+    config: { stage: 'Discover' }
+  }
+}
+
+function createExploreModule(
+  config: ProjectModule['config'] = { stage: 'Discover' }
+): ProjectModule {
+  return {
+    projectId: 'project_001',
+    moduleId: 'explore',
+    displayName: '探索模块',
+    status: 'ready',
+    summary: '机会扫描和证据收集。',
+    defaultAgents: ['agent_general_assistant'],
+    enabledSkills: ['skill_opportunity_scan'],
+    enabledTools: ['tool_model_generate_stub'],
+    enabledMcpServers: [],
+    outputArtifacts: ['dream_brief.md'],
+    nextBestAction: '先跑机会扫描。',
+    submodules: [
+      createExploreSubmodule({
+        submoduleId: 'opportunity_radar',
+        displayName: '机会雷达',
+        status: 'ready',
+        summary: '扫描机会。',
+        nextBestAction: '先生成机会清单。',
+        artifacts: ['dream_brief.md', 'hypotheses.yaml']
+      }),
+      createExploreSubmodule({
+        submoduleId: 'user_persona',
+        displayName: '用户画像',
+        summary: '结构化目标用户、场景和付费动机。',
+        nextBestAction: '补齐 ICP 和痛点证据。',
+        artifacts: ['personas.json']
+      }),
+      createExploreSubmodule({
+        submoduleId: 'competitor_map',
+        displayName: '竞品地图',
+        summary: '整理替代方案和差异化空间。',
+        nextBestAction: '确认竞品范围。',
+        artifacts: ['competitor_matrix.xlsx']
+      }),
+      createExploreSubmodule({
+        submoduleId: 'evidence_graph',
+        displayName: '证据图谱',
+        summary: '把假设、证据、风险和动作连成图谱。',
+        nextBestAction: '证据不足时返回 ask_user。',
+        artifacts: ['evidence_graph.json']
+      })
+    ],
+    config
   }
 }
 
@@ -531,40 +605,14 @@ function createDreamWorkerApiStub(): DreamWorkerApi {
         manifestPath: 'C:\\DreamWorkerProjects\\project_001\\.dreamworker\\manifest.json',
         manifest: {}
       }),
-      listProjectModules: vi.fn().mockResolvedValue([
-        {
-          projectId: 'project_001',
-          moduleId: 'explore',
-          displayName: '探索模块',
-          status: 'ready',
-          summary: '机会扫描和证据收集。',
-          defaultAgents: ['agent_general_assistant'],
-          enabledSkills: ['skill_opportunity_scan'],
-          enabledTools: ['tool_model_generate_stub'],
-          enabledMcpServers: [],
-          outputArtifacts: ['dream_brief.md'],
-          nextBestAction: '先跑机会扫描。',
-          submodules: [
-            {
-              projectId: 'project_001',
-              moduleId: 'explore',
-              submoduleId: 'opportunity_radar',
-              displayName: '机会雷达',
-              status: 'ready',
-              summary: '扫描机会。',
-              defaultAgents: ['agent_general_assistant'],
-              enabledSkills: ['skill_opportunity_scan'],
-              enabledTools: ['tool_model_generate_stub'],
-              outputArtifacts: ['dream_brief.md'],
-              nextBestAction: '先生成机会清单。',
-              config: { stage: 'Discover' }
-            }
-          ],
-          config: { stage: 'Discover' }
-        }
-      ]),
+      listProjectModules: vi.fn().mockResolvedValue([createExploreModule()]),
       getProjectModule: vi.fn(),
-      updateProjectModuleConfig: vi.fn(),
+      updateProjectModuleConfig: vi.fn().mockImplementation(async (input) =>
+        createExploreModule({
+          ...input.config,
+          updatedByTest: true
+        })
+      ),
       importRequirementFiles: vi.fn().mockResolvedValue(null),
       listRequirementSources: vi.fn().mockResolvedValue({
         projectId: 'project_001',
@@ -610,6 +658,11 @@ function createDreamWorkerApiStub(): DreamWorkerApi {
         warnings: [],
         traceId: 'tr_req',
         createdAt: '2026-07-01T00:00:00Z'
+      }),
+      openRequirementOutputFile: vi.fn().mockResolvedValue({
+        ok: true,
+        path: 'C:\\DreamWorkerProjects\\project_001\\artifacts\\product\\requirements_spec.docx',
+        message: '已打开文件。'
       })
     },
     chat: {
@@ -706,7 +759,8 @@ function createDreamWorkerApiStub(): DreamWorkerApi {
         adapterPath: '',
         available: true,
         message: 'ready',
-        engines: []
+        engines: [],
+        engineStatuses: []
       }),
       createSession: vi.fn().mockResolvedValue({
         sessionId: 'coding_001',
@@ -786,6 +840,192 @@ describe('app shell workspace state', () => {
     expect(api.projects.listProjectModules).toHaveBeenCalledWith('project_001')
   })
 
+  it('opens and closes every explore submodule detail page', async () => {
+    const api = createDreamWorkerApiStub()
+    stubDreamWorkerApi(api)
+    const store = useAppShellStore()
+    await store.loadWorkspace()
+
+    for (const submoduleId of [
+      'opportunity_radar',
+      'user_persona',
+      'competitor_map',
+      'evidence_graph'
+    ]) {
+      store.enterSubmodule('explore', submoduleId)
+      expect(store.activeSubmoduleDetail).toEqual({ moduleId: 'explore', submoduleId })
+      expect(store.activeSubmodule?.submoduleId).toBe(submoduleId)
+    }
+
+    store.leaveSubmoduleDetail()
+
+    expect(store.activeSubmoduleDetail).toBeNull()
+  })
+
+  it('persists explore module config through the typed API', async () => {
+    const api = createDreamWorkerApiStub()
+    stubDreamWorkerApi(api)
+    const store = useAppShellStore()
+    await store.loadWorkspace()
+
+    await store.updateProjectModuleConfig('explore', {
+      stage: 'Discover',
+      opportunity_radar_brief: '验证本地项目工作台机会'
+    })
+
+    expect(api.projects.updateProjectModuleConfig).toHaveBeenCalledWith({
+      projectId: 'project_001',
+      moduleId: 'explore',
+      config: {
+        stage: 'Discover',
+        opportunity_radar_brief: '验证本地项目工作台机会'
+      }
+    })
+    expect(store.projectModules[0]?.config).toMatchObject({
+      opportunity_radar_brief: '验证本地项目工作台机会',
+      updatedByTest: true
+    })
+  })
+
+  it('imports requirement documents, previews MinerU output and stores generated artifacts', async () => {
+    const api = createDreamWorkerApiStub()
+    const projectSource = {
+      sourceId: 'project_description',
+      kind: 'project_description' as const,
+      fileName: '',
+      relativePath: '',
+      absolutePath: '',
+      mimeType: 'text/plain',
+      charCount: 28,
+      importedAt: '2026-07-01T00:00:00Z',
+      summary: '项目描述'
+    }
+    const importedSource = {
+      sourceId: 'src_contract_docx',
+      kind: 'imported_file' as const,
+      fileName: 'coding-agent-contract.docx',
+      relativePath: 'imports/requirements/req_import/coding-agent-contract.docx',
+      absolutePath:
+        'C:\\DreamWorkerProjects\\project_001\\imports\\requirements\\req_import\\coding-agent-contract.docx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      charCount: 2400,
+      importedAt: '2026-07-01T00:01:00Z',
+      summary: '编码智能体合同式需求'
+    }
+    vi.mocked(api.projects.importRequirementFiles).mockResolvedValue({
+      projectId: 'project_001',
+      runId: 'req_import',
+      sources: [importedSource],
+      message: '已导入 1 个需求文件。'
+    })
+    vi.mocked(api.projects.listRequirementSources).mockResolvedValue({
+      projectId: 'project_001',
+      sources: [projectSource, importedSource]
+    })
+    vi.mocked(api.projects.previewRequirementSource).mockResolvedValue({
+      projectId: 'project_001',
+      source: importedSource,
+      parser: 'mineru',
+      content: 'FR-001 任务理解与执行计划\nFR-002 代码修改与验证',
+      charCount: 38,
+      truncated: false,
+      traceId: 'tr_preview',
+      createdAt: '2026-07-01T00:02:00Z'
+    })
+    vi.mocked(api.projects.runRequirementAnalysis).mockResolvedValue({
+      runId: 'req_analysis',
+      projectId: 'project_001',
+      status: 'completed',
+      sources: [projectSource, importedSource],
+      featureCount: 1,
+      outputFiles: [
+        {
+          kind: 'feature_excel',
+          fileName: 'feature_list.xlsx',
+          relativePath: 'artifacts/product/feature_list.xlsx',
+          absolutePath:
+            'C:\\DreamWorkerProjects\\project_001\\artifacts\\product\\feature_list.xlsx'
+        },
+        {
+          kind: 'requirements_word',
+          fileName: 'requirements_spec.docx',
+          relativePath: 'artifacts/product/requirements_spec.docx',
+          absolutePath:
+            'C:\\DreamWorkerProjects\\project_001\\artifacts\\product\\requirements_spec.docx'
+        }
+      ],
+      warnings: [],
+      traceId: 'tr_req',
+      createdAt: '2026-07-01T00:03:00Z',
+      analysis: {
+        projectTitle: '编码智能体',
+        summary: '从合同式需求中抽取功能清单。',
+        sources: ['coding-agent-contract.docx'],
+        roles: ['项目负责人'],
+        features: [
+          {
+            featureId: 'FR-001',
+            module: '任务执行',
+            name: '任务理解与执行计划',
+            role: '项目负责人',
+            scenario: '提交编码任务后获得计划与执行结果',
+            description: '识别任务目标、约束和验收口径。',
+            priority: 'P0',
+            type: 'functional',
+            inputs: ['合同式需求文档'],
+            outputs: ['执行计划'],
+            acceptanceCriteria: ['生成可追踪的计划项'],
+            dependencies: [],
+            sourceRefs: ['coding-agent-contract.docx'],
+            notes: ''
+          }
+        ],
+        nonFunctionalRequirements: ['生成文档可由 WPS 或 Word 打开'],
+        risks: [],
+        openQuestions: []
+      }
+    })
+    stubDreamWorkerApi(api)
+    const store = useAppShellStore()
+    await store.loadWorkspace()
+
+    await store.importRequirementFiles()
+
+    expect(api.projects.previewRequirementSource).toHaveBeenCalledWith({
+      projectId: 'project_001',
+      sourceId: 'src_contract_docx'
+    })
+    expect(store.requirementSourcePreview?.parser).toBe('mineru')
+    expect(store.selectedRequirementSourceIds).toEqual(['project_description', 'src_contract_docx'])
+
+    await store.runRequirementAnalysis()
+
+    expect(api.projects.runRequirementAnalysis).toHaveBeenCalledWith({
+      projectId: 'project_001',
+      sourceIds: ['project_description', 'src_contract_docx'],
+      prompt: ''
+    })
+    expect(store.requirementAnalysisRun?.featureCount).toBe(1)
+    expect(store.requirementAnalysisRun?.outputFiles.map((file) => file.fileName)).toEqual([
+      'feature_list.xlsx',
+      'requirements_spec.docx'
+    ])
+  })
+
+  it('opens requirement output files through the typed API', async () => {
+    const api = createDreamWorkerApiStub()
+    stubDreamWorkerApi(api)
+    const store = useAppShellStore()
+    await store.loadWorkspace()
+
+    const artifactPath =
+      'C:\\DreamWorkerProjects\\project_001\\artifacts\\product\\requirements_spec.docx'
+    await store.openRequirementOutputFile(artifactPath)
+
+    expect(api.projects.openRequirementOutputFile).toHaveBeenCalledWith(artifactPath)
+    expect(store.resourceNotice?.tone).toBe('success')
+  })
+
   it('keeps runtime.ping as a status concern', async () => {
     const api = createDreamWorkerApiStub()
     stubDreamWorkerApi(api)
@@ -796,7 +1036,7 @@ describe('app shell workspace state', () => {
     expect(store.runtimePing).toEqual({
       status: 'ready',
       headline: '引擎已连接',
-      detail: 'Go Engine 0.1.0 已响应。',
+      detail: 'Main Runtime 0.1.0 已响应。',
       traceId: 'tr_store',
       errorCode: '暂无'
     })

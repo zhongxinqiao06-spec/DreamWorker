@@ -37,6 +37,7 @@ import {
   type McpServerConfig,
   type ModelProfile,
   type OpenExternalResult,
+  type OpenLocalFileResult,
   type Project,
   type ProjectDirectoryCheck,
   type ProjectLocalDirectoryActionResult,
@@ -226,9 +227,13 @@ export function createDreamWorkerApi(invoke: IpcInvoke, listen?: IpcListen): Dre
       updateProjectModuleConfig: (input: UpdateProjectModuleConfigInput) =>
         invokeTyped<ProjectModule>(invoke, CHANNELS.projectsUpdateModuleConfig, input),
       importRequirementFiles: (projectId: string) =>
-        invokeTyped<RequirementImportResult | null>(invoke, CHANNELS.projectsImportRequirementFiles, {
-          projectId
-        }),
+        invokeTyped<RequirementImportResult | null>(
+          invoke,
+          CHANNELS.projectsImportRequirementFiles,
+          {
+            projectId
+          }
+        ),
       listRequirementSources: (projectId: string) =>
         invokeTyped<RequirementSourcesResult>(invoke, CHANNELS.projectsListRequirementSources, {
           projectId
@@ -240,7 +245,11 @@ export function createDreamWorkerApi(invoke: IpcInvoke, listen?: IpcListen): Dre
           input
         ),
       runRequirementAnalysis: (input: RunRequirementAnalysisInput) =>
-        invokeTyped<RequirementAnalysisRun>(invoke, CHANNELS.projectsRunRequirementAnalysis, input)
+        invokeTyped<RequirementAnalysisRun>(invoke, CHANNELS.projectsRunRequirementAnalysis, input),
+      openRequirementOutputFile: (absolutePath: string) =>
+        invokeTyped<OpenLocalFileResult>(invoke, CHANNELS.projectsOpenRequirementOutputFile, {
+          absolutePath
+        })
     },
     chat: {
       listSessions: () => invokeTyped<readonly ChatSession[]>(invoke, CHANNELS.chatListSessions),

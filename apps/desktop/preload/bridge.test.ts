@@ -29,9 +29,9 @@ describe('preload typed API contract', () => {
       trace_id: 'tr_test',
       error: {
         code: 'ENGINE_NOT_CONNECTED',
-        message: 'Go Engine 尚未连接，后续阶段会接入本地引擎。',
+        message: 'Main Runtime 尚未连接。',
         recoverable: true,
-        user_action: '等待引擎接入后重试。',
+        user_action: '等待本地 Runtime 启动后重试。',
         trace_id: 'tr_test'
       }
     }
@@ -121,6 +121,7 @@ describe('preload typed API contract', () => {
       projectId: 'project_001',
       sourceId: 'src_imported'
     })
+    await api.projects.openRequirementOutputFile('C:\\project\\feature_list.xlsx')
     await api.projects.runRequirementAnalysis({
       projectId: 'project_001',
       sourceIds: ['project_description'],
@@ -149,6 +150,9 @@ describe('preload typed API contract', () => {
     expect(invoke).toHaveBeenCalledWith(CHANNELS.projectsPreviewRequirementSource, {
       projectId: 'project_001',
       sourceId: 'src_imported'
+    })
+    expect(invoke).toHaveBeenCalledWith(CHANNELS.projectsOpenRequirementOutputFile, {
+      absolutePath: 'C:\\project\\feature_list.xlsx'
     })
     expect(invoke).toHaveBeenCalledWith(CHANNELS.projectsRunRequirementAnalysis, {
       projectId: 'project_001',

@@ -119,6 +119,30 @@ describe('runtime ipc project directory handlers', () => {
     })
   })
 
+  it('opens generated requirement artifacts through the shell', async () => {
+    registerRuntimeIpcHandlers()
+    electronMock.openPath.mockResolvedValue('')
+
+    const artifactPath =
+      'C:\\DreamWorkerProjects\\project_001\\artifacts\\product\\requirements_spec.docx'
+    const handler = electronMock.handlers.get(CHANNELS.projectsOpenRequirementOutputFile)
+    await expect(handler?.(null, { absolutePath: artifactPath })).resolves.toEqual({
+      ok: true,
+      path: artifactPath,
+      message: '已打开文件。'
+    })
+
+    expect(electronMock.openPath).toHaveBeenCalledWith(artifactPath)
+    await expect(
+      handler?.(null, { absolutePath: 'C:\\Users\\1\\Documents\\requirements_spec.docx' })
+    ).resolves.toEqual({
+      ok: false,
+      path: 'C:\\Users\\1\\Documents\\requirements_spec.docx',
+      message: '仅允许打开需求分析生成的文档产物。'
+    })
+    expect(electronMock.openPath).toHaveBeenCalledTimes(1)
+  })
+
   it('opens only http urls through the system external channel', async () => {
     registerRuntimeIpcHandlers()
     electronMock.openExternal.mockResolvedValue(undefined)

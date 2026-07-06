@@ -30,7 +30,7 @@ const response = await fetch(`${baseUrl}/chat/completions`, {
       {
         role: 'user',
         content: isLongTask
-          ? '围绕 DreamWorker PR-07 的 Electron/Vue 桌面 AI 工作台，生成一个可执行的长任务 QA 清单。必须覆盖：普通 Agent 聊天工作台、资源配置中心、模型服务商脱敏、Agent/Skill/Tool/MCP 管理、项目空间、探索/产品/开发/销售四大模块、Command-K、中文 UI、runtime.ping 诊断、Main 到 Go Engine typed API 联通。JSON 字段：summary、checks、risks、next_best_action。checks 至少 8 条。'
+          ? '围绕 DreamWorker PR-07 的 Electron/Vue 桌面 AI 工作台，生成一个可执行的长任务 QA 清单。必须覆盖：普通 Agent 聊天工作台、资源配置中心、模型服务商脱敏、Agent/Skill/Tool/MCP 管理、项目空间、探索/产品/开发/销售四大模块、Command-K、中文 UI、runtime.ping 诊断、Main Runtime typed API 联通。JSON 字段：summary、checks、risks、next_best_action。checks 至少 8 条。'
           : '返回一个最小 JSON：{"ok":true,"message":"DeepSeek flash 连通成功"}。'
       }
     ],
@@ -76,7 +76,7 @@ if (!content.trim()) {
   )
   process.exit(1)
 }
-if (isLongTask && !/资源配置中心|项目空间|Agent|runtime\.ping|Go Engine/.test(content)) {
+if (isLongTask && !/资源配置中心|项目空间|Agent|runtime\.ping|Main Runtime/.test(content)) {
   console.error(
     JSON.stringify(
       {

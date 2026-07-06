@@ -1,4 +1,5 @@
 import { dialog, ipcMain, shell } from 'electron'
+import nodePath from 'node:path'
 import {
   CHANNELS,
   type ChatStreamEvent,
@@ -13,7 +14,7 @@ import { createRuntimePingStubResponse } from './runtime-ping'
 
 export type RuntimePingProvider = () => Promise<RuntimePingResponse> | RuntimePingResponse
 
-export type EngineRequestProvider = <T>(
+export type RuntimeRequestProvider = <T>(
   path: string,
   init?: {
     readonly method?: 'GET' | 'POST'
@@ -21,7 +22,7 @@ export type EngineRequestProvider = <T>(
   }
 ) => Promise<T>
 
-export type EngineStreamProvider = (
+export type RuntimeStreamProvider = (
   path: string,
   init: {
     readonly body: unknown
@@ -30,13 +31,13 @@ export type EngineStreamProvider = (
   onEvent: (event: ChatStreamEvent | CodingStreamEvent) => void
 ) => Promise<{ readonly streamId: string }>
 
-type EngineRoute = {
+type RuntimeRoute = {
   readonly channel: string
   readonly path: string
   readonly method: 'GET' | 'POST'
 }
 
-const ENGINE_ROUTES: readonly EngineRoute[] = [
+const RUNTIME_ROUTES: readonly RuntimeRoute[] = [
   { channel: CHANNELS.modelsListProviders, path: '/models/providers', method: 'GET' },
   { channel: CHANNELS.modelsSaveProvider, path: '/models/providers/save', method: 'POST' },
   { channel: CHANNELS.modelsDeleteProvider, path: '/models/providers/delete', method: 'POST' },
@@ -145,9 +146,9 @@ const ENGINE_ROUTES: readonly EngineRoute[] = [
 
 export function registerRuntimeIpcHandlers(
   runtimePingProvider: RuntimePingProvider = createRuntimePingStubResponse,
-  engineRequestProvider?: EngineRequestProvider,
-  engineStreamProvider?: EngineStreamProvider,
-  engineStreamCancelProvider?: (streamId: string) => void
+  runtimeRequestProvider?: RuntimeRequestProvider,
+  runtimeStreamProvider?: RuntimeStreamProvider,
+  runtimeStreamCancelProvider?: (streamId: string) => void
 ): void {
   ipcMain.handle(CHANNELS.runtimePing, () => runtimePingProvider())
 
@@ -168,12 +169,12 @@ export function registerRuntimeIpcHandlers(
   })
 
   ipcMain.handle(CHANNELS.projectsOpenLocalDirectory, async (_event, payload: unknown) => {
-    if (!engineRequestProvider) {
-      throw new Error('Go Engine is not connected.')
+    if (!runtimeRequestProvider) {
+      throw new Error('Main Runtime 尚未连接。')
     }
     const projectId =
       isRecord(payload) && typeof payload.projectId === 'string' ? payload.projectId : ''
-    const check = await engineRequestProvider<ProjectDirectoryCheck>(
+    const check = await runtimeRequestProvider<ProjectDirectoryCheck>(
       '/projects/local-directory/validate',
       { method: 'POST', body: { projectId } }
     )
@@ -197,8 +198,8 @@ export function registerRuntimeIpcHandlers(
   })
 
   ipcMain.handle(CHANNELS.projectsImportRequirementFiles, async (_event, payload: unknown) => {
-    if (!engineRequestProvider) {
-      throw new Error('Go Engine is not connected.')
+    if (!runtimeRequestProvider) {
+      throw new Error('Main Runtime 尚未连接。')
     }
     const projectId =
       isRecord(payload) && typeof payload.projectId === 'string' ? payload.projectId : ''
@@ -210,32 +211,57 @@ export function registerRuntimeIpcHandlers(
     if (result.canceled || result.filePaths.length === 0) {
       return null
     }
-    return engineRequestProvider<RequirementImportResult>('/projects/requirements/import-files', {
+    return runtimeRequestProvider<RequirementImportResult>('/projects/requirements/import-files', {
       method: 'POST',
       body: { projectId, filePaths: result.filePaths }
     })
   })
 
-  for (const route of ENGINE_ROUTES) {
+  ipcMain.handle(CHANNELS.projectsOpenRequirementOutputFile, async (_event, payload: unknown) => {
+    const absolutePath =
+      isRecord(payload) && typeof payload.absolutePath === 'string' ? payload.absolutePath : ''
+    if (!absolutePath || !nodePath.isAbsolute(absolutePath)) {
+      return { ok: false, path: absolutePath, message: '缺少有效的本地文件路径。' }
+    }
+    const allowedOutputFiles = new Set([
+      'feature_list.xlsx',
+      'requirements_spec.docx',
+      'requirements_spec.pdf',
+      'requirements_analysis.json'
+    ])
+    const fileName = nodePath.basename(absolutePath).toLowerCase()
+    const normalizedPath = absolutePath.replaceAll('\\', '/').toLowerCase()
+    if (!allowedOutputFiles.has(fileName) || !normalizedPath.includes('/artifacts/product/')) {
+      return { ok: false, path: absolutePath, message: '仅允许打开需求分析生成的文档产物。' }
+    }
+    const openError = await shell.openPath(absolutePath)
+    return {
+      ok: openError === '',
+      path: absolutePath,
+      message: openError || '已打开文件。'
+    }
+  })
+
+  for (const route of RUNTIME_ROUTES) {
     ipcMain.handle(route.channel, (_event, payload: unknown) => {
-      if (!engineRequestProvider) {
-        throw new Error('Go Engine 尚未连接，无法读取工作台数据。')
+      if (!runtimeRequestProvider) {
+        throw new Error('Main Runtime 尚未连接，无法读取工作台数据。')
       }
 
       if (route.method === 'GET') {
-        return engineRequestProvider(route.path, { method: 'GET' })
+        return runtimeRequestProvider(route.path, { method: 'GET' })
       }
 
-      return engineRequestProvider(route.path, { method: 'POST', body: payload ?? {} })
+      return runtimeRequestProvider(route.path, { method: 'POST', body: payload ?? {} })
     })
   }
 
   ipcMain.handle(CHANNELS.chatStartStream, async (event, payload: unknown) => {
-    if (!engineStreamProvider || !isRecord(payload) || typeof payload.streamId !== 'string') {
-      throw new Error('Go Engine streaming is not available.')
+    if (!runtimeStreamProvider || !isRecord(payload) || typeof payload.streamId !== 'string') {
+      throw new Error('Main Runtime streaming 尚不可用。')
     }
     const streamId = payload.streamId
-    return engineStreamProvider(
+    return runtimeStreamProvider(
       '/chat/messages/stream',
       { body: payload, streamId },
       (streamEvent) => {
@@ -245,37 +271,53 @@ export function registerRuntimeIpcHandlers(
   })
 
   ipcMain.handle(CHANNELS.chatCancelStream, (_event, payload: unknown) => {
-    if (!engineRequestProvider) {
-      throw new Error('Go Engine is not connected.')
+    if (!runtimeRequestProvider) {
+      throw new Error('Main Runtime 尚未连接。')
     }
     if (isRecord(payload) && typeof payload.streamId === 'string') {
-      engineStreamCancelProvider?.(payload.streamId)
+      runtimeStreamCancelProvider?.(payload.streamId)
     }
-    return engineRequestProvider('/chat/messages/cancel', { method: 'POST', body: payload ?? {} })
+    return runtimeRequestProvider('/chat/messages/cancel', { method: 'POST', body: payload ?? {} })
   })
 
   ipcMain.handle(CHANNELS.codingStartTurn, async (event, payload: unknown) => {
-    if (!engineStreamProvider || !isRecord(payload) || typeof payload.streamId !== 'string') {
-      throw new Error('Go Engine streaming is not available.')
+    if (!runtimeStreamProvider || !isRecord(payload) || typeof payload.streamId !== 'string') {
+      throw new Error('Main Runtime streaming 尚不可用。')
     }
     const streamId = payload.streamId
-    return engineStreamProvider(
+    return runtimeStreamProvider(
       '/coding/turns/stream',
       { body: payload, streamId },
       (streamEvent) => {
+        if (streamEvent.type === 'failed') {
+          event.sender.send(CHANNELS.codingStreamEvent, {
+            type: 'error',
+            streamId,
+            sessionId: '',
+            engineId: 'codex',
+            providerId: '',
+            model: '',
+            trace_id: streamId,
+            sequence: 0,
+            timestamp: new Date().toISOString(),
+            message: streamEvent.error?.message ?? 'coding stream failed',
+            error: streamEvent.error
+          })
+          return
+        }
         event.sender.send(CHANNELS.codingStreamEvent, streamEvent)
       }
     )
   })
 
   ipcMain.handle(CHANNELS.codingCancelTurn, (_event, payload: unknown) => {
-    if (!engineRequestProvider) {
-      throw new Error('Go Engine is not connected.')
+    if (!runtimeRequestProvider) {
+      throw new Error('Main Runtime 尚未连接。')
     }
     if (isRecord(payload) && typeof payload.streamId === 'string') {
-      engineStreamCancelProvider?.(payload.streamId)
+      runtimeStreamCancelProvider?.(payload.streamId)
     }
-    return engineRequestProvider('/coding/turns/cancel', { method: 'POST', body: payload ?? {} })
+    return runtimeRequestProvider('/coding/turns/cancel', { method: 'POST', body: payload ?? {} })
   })
 }
 

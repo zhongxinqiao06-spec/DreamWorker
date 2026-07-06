@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createRuntimePingStubResponse } from './runtime-ping'
 
 describe('runtime ping main stub', () => {
-  it('returns a structured Chinese engine-not-connected response', () => {
+  it('returns a structured engine-not-connected response', () => {
     const response = createRuntimePingStubResponse('tr_contract')
 
     expect(response).toEqual({
@@ -11,9 +11,9 @@ describe('runtime ping main stub', () => {
       trace_id: 'tr_contract',
       error: {
         code: 'ENGINE_NOT_CONNECTED',
-        message: 'Go Engine 尚未连接，后续阶段会接入本地引擎。',
+        message: 'Main Runtime 尚未连接。',
         recoverable: true,
-        user_action: '等待引擎接入后重试。',
+        user_action: '等待本地 Runtime 启动后重试。',
         trace_id: 'tr_contract'
       }
     })

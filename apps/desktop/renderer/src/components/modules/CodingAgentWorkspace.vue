@@ -56,7 +56,12 @@ const files = ref<CodingFileEntry[]>([])
 const fileQuery = ref('')
 const selectedFile = ref<CodingReadFileResult | null>(null)
 const selectedPath = ref('')
-const fileStatus = ref<{ branch: string; changes: readonly CodingFileChange[]; clean: boolean; message: string } | null>(null)
+const fileStatus = ref<{
+  branch: string
+  changes: readonly CodingFileChange[]
+  clean: boolean
+  message: string
+} | null>(null)
 const messages = ref<CodingMessage[]>([])
 const draft = ref('')
 const streaming = ref(false)
@@ -368,12 +373,17 @@ function providerSupport(
   if (allowed.includes(provider.providerType) || isRoutedModelProvider(provider)) {
     return { supported: true, reason: '' }
   }
-  return { supported: false, reason: `${engine.displayName} prefers 9Router or OpenAI-compatible providers` }
+  return {
+    supported: false,
+    reason: `${engine.displayName} prefers 9Router or OpenAI-compatible providers`
+  }
 }
 
 function appendAssistant(delta: string): void {
   messages.value = messages.value.map((message) =>
-    message.id === assistantMessageId.value ? { ...message, content: `${message.content}${delta}` } : message
+    message.id === assistantMessageId.value
+      ? { ...message, content: `${message.content}${delta}` }
+      : message
   )
 }
 
@@ -474,7 +484,7 @@ function formatFileSize(size: number): string {
     <section v-if="!hasProjectRoot" class="coding-empty-state">
       <FolderTree :size="38" aria-hidden="true" />
       <h3>需要绑定项目目录</h3>
-      <p>编码 Agent 只会在当前项目 localRootPath 内读写文件。</p>
+      <p>编码 Agent 只会在当前项目 localRootPath/workspace/code 内读写文件。</p>
       <button class="primary-button" type="button" @click="openProjectDirectorySettings">
         <Settings :size="16" aria-hidden="true" />
         绑定 localRootPath
@@ -517,7 +527,9 @@ function formatFileSize(size: number): string {
             <span v-if="selectedFile">{{ formatFileSize(selectedFile.size) }}</span>
           </div>
           <pre v-if="selectedFile?.content">{{ selectedFile.content }}</pre>
-          <p v-else>{{ selectedFile ? '二进制或超大文件不展示内容。' : '选择一个文件查看内容。' }}</p>
+          <p v-else>
+            {{ selectedFile ? '二进制或超大文件不展示内容。' : '选择一个文件查看内容。' }}
+          </p>
         </div>
       </aside>
 
@@ -529,12 +541,18 @@ function formatFileSize(size: number): string {
             class="coding-message"
             :class="[message.role, message.status]"
           >
-            <span>{{ message.role === 'user' ? 'You' : message.role === 'assistant' ? engineLabel(engineId) : 'System' }}</span>
+            <span>{{
+              message.role === 'user'
+                ? 'You'
+                : message.role === 'assistant'
+                  ? engineLabel(engineId)
+                  : 'System'
+            }}</span>
             <p>{{ message.content || (message.status === 'streaming' ? '运行中...' : '') }}</p>
           </article>
           <article v-if="messages.length === 0" class="coding-message system">
             <span>System</span>
-            <p>选择引擎、供应商和模型后，可以直接让 Agent 在当前项目目录内修改代码。</p>
+            <p>选择引擎、供应商和模型后，可以直接让 Agent 在 workspace/code 内修改代码。</p>
           </article>
         </div>
         <div v-if="streamError" class="coding-error">
@@ -581,7 +599,13 @@ function formatFileSize(size: number): string {
               <RefreshCw :size="14" aria-hidden="true" />
             </button>
           </div>
-          <p>{{ fileStatus?.branch ? `branch ${fileStatus.branch}` : (fileStatus?.message ?? '暂无状态') }}</p>
+          <p>
+            {{
+              fileStatus?.branch
+                ? `branch ${fileStatus.branch}`
+                : (fileStatus?.message ?? '暂无状态')
+            }}
+          </p>
           <ul>
             <li v-for="change in changedFiles" :key="`${change.status}_${change.path}`">
               <span>{{ change.status }}</span>
@@ -615,6 +639,10 @@ function formatFileSize(size: number): string {
   gap: 14px;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
+  background:
+    url('/aios/resource-orbit-banner.png') top right / min(36vw, 460px) auto no-repeat,
+    rgba(255, 255, 255, 0.78);
   padding: 18px;
 }
 
@@ -653,10 +681,11 @@ function formatFileSize(size: number): string {
   display: inline-grid;
   grid-auto-flow: column;
   gap: 4px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(148, 163, 184, 0.26);
   border-radius: 8px;
   padding: 4px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(248, 250, 252, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
 }
 
 .segmented-control button,
@@ -677,18 +706,20 @@ function formatFileSize(size: number): string {
 }
 
 .segmented-control button.active {
-  border-color: rgba(111, 232, 255, 0.36);
-  background: rgba(111, 232, 255, 0.11);
+  border-color: rgba(37, 99, 235, 0.28);
+  background: rgba(239, 246, 255, 0.92);
   color: var(--text);
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.1);
 }
 
 .coding-controls select,
 .coding-input,
 .coding-composer textarea {
-  border: 1px solid var(--line);
+  border: 1px solid rgba(148, 163, 184, 0.26);
   border-radius: 8px;
-  background: rgba(6, 8, 13, 0.72);
+  background: rgba(255, 255, 255, 0.86);
   color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
 }
 
 .coding-controls select {
@@ -700,20 +731,23 @@ function formatFileSize(size: number): string {
 .runtime-pill {
   gap: 6px;
   min-height: 34px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 999px;
   padding: 0 10px;
   color: var(--muted);
+  background: rgba(248, 250, 252, 0.76);
 }
 
 .runtime-pill.ready {
   border-color: rgba(125, 242, 176, 0.35);
   color: var(--green);
+  background: rgba(236, 253, 245, 0.82);
 }
 
 .runtime-pill.error {
   border-color: rgba(255, 107, 154, 0.35);
   color: var(--danger);
+  background: rgba(254, 242, 242, 0.82);
 }
 
 .coding-empty-state {
@@ -743,9 +777,11 @@ function formatFileSize(size: number): string {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 8px;
-  background: rgba(9, 12, 18, 0.58);
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: var(--glass-blur);
 }
 
 .file-pane,
@@ -791,7 +827,8 @@ function formatFileSize(size: number): string {
   height: 30px;
   display: grid;
   place-items: center;
-  border-color: var(--line);
+  border-color: rgba(148, 163, 184, 0.24);
+  background: rgba(248, 250, 252, 0.76);
 }
 
 .coding-input {
@@ -818,8 +855,10 @@ function formatFileSize(size: number): string {
   text-align: left;
 }
 
+.file-list button:hover,
 .file-list button.active {
-  background: rgba(111, 232, 255, 0.1);
+  border-color: rgba(124, 58, 237, 0.18);
+  background: rgba(237, 231, 255, 0.62);
   color: var(--text);
 }
 
@@ -833,7 +872,7 @@ function formatFileSize(size: number): string {
 .file-preview {
   min-height: 0;
   overflow: hidden;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
   padding-top: 8px;
 }
 
@@ -843,7 +882,7 @@ function formatFileSize(size: number): string {
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
-  color: #d8f6ff;
+  color: #334155;
   font-size: 12px;
   line-height: 1.55;
 }
@@ -870,15 +909,17 @@ function formatFileSize(size: number): string {
 .coding-message {
   display: grid;
   gap: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 8px;
   padding: 10px;
-  background: rgba(255, 255, 255, 0.035);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 8px 18px rgba(100, 116, 139, 0.08);
 }
 
 .coding-message.user {
   margin-left: 32px;
-  border-color: rgba(111, 232, 255, 0.24);
+  border-color: rgba(37, 99, 235, 0.18);
+  background: rgba(239, 246, 255, 0.82);
 }
 
 .coding-message.assistant {
@@ -890,7 +931,7 @@ function formatFileSize(size: number): string {
 }
 
 .coding-message span {
-  color: var(--cyan);
+  color: var(--purple);
   font-size: 12px;
   font-weight: 800;
 }
@@ -922,12 +963,14 @@ function formatFileSize(size: number): string {
   width: 42px;
   height: 42px;
   justify-content: center;
+  border-color: rgba(148, 163, 184, 0.24);
+  background: rgba(248, 250, 252, 0.82);
 }
 
 .runtime-card {
   display: grid;
   gap: 8px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
   padding-bottom: 12px;
 }
 
@@ -987,4 +1030,3 @@ function formatFileSize(size: number): string {
   }
 }
 </style>
-

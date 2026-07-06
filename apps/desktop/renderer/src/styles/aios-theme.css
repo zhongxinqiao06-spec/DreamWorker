@@ -1013,7 +1013,12 @@ h3,
 .home-hero {
   background:
     url('/aios/glass-orbit-corner.png') top right / min(34vw, 420px) auto no-repeat,
-    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(239, 246, 255, 0.72) 48%, rgba(237, 231, 255, 0.72)),
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.92),
+      rgba(239, 246, 255, 0.72) 48%,
+      rgba(237, 231, 255, 0.72)
+    ),
     var(--surface);
 }
 

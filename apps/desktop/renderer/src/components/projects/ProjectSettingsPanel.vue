@@ -309,11 +309,7 @@ function eventValue(event: Event): string {
 
 function confirmDeleteProject(): void {
   const title = appShell.activeProject?.title ?? '当前项目'
-  if (
-    window.confirm(
-      `确认仅删除 DreamWorker 项目记录「${title}」吗？本地目录和产物不会被删除。`
-    )
-  ) {
+  if (window.confirm(`确认仅删除 DreamWorker 项目记录「${title}」吗？本地目录和产物不会被删除。`)) {
     void appShell.deleteActiveProject()
   }
 }
@@ -440,18 +436,30 @@ function confirmDeleteProject(): void {
                 placeholder="选择或粘贴项目根目录"
                 aria-label="本地项目目录"
               />
-              <button type="button" title="选择目录" @click="appShell.chooseProjectLocalDirectory()">
+              <button
+                type="button"
+                title="选择目录"
+                @click="appShell.chooseProjectLocalDirectory()"
+              >
                 <Folder :size="16" aria-hidden="true" />
               </button>
               <button type="button" title="打开目录" @click="appShell.openActiveProjectDirectory()">
                 <FolderOpen :size="16" aria-hidden="true" />
               </button>
-              <button type="button" title="重新检测" @click="appShell.validateActiveProjectDirectory()">
+              <button
+                type="button"
+                title="重新检测"
+                @click="appShell.validateActiveProjectDirectory()"
+              >
                 <RefreshCw :size="16" aria-hidden="true" />
               </button>
             </div>
             <div class="horizontal-actions">
-              <button class="primary-button" type="button" @click="appShell.initializeActiveProjectDirectory()">
+              <button
+                class="primary-button"
+                type="button"
+                @click="appShell.initializeActiveProjectDirectory()"
+              >
                 <CheckCircle2 :size="15" aria-hidden="true" />
                 初始化项目目录
               </button>
@@ -480,7 +488,13 @@ function confirmDeleteProject(): void {
                 </div>
                 <div>
                   <dt>最近检测</dt>
-                  <dd>{{ directoryCheck?.lastCheckedAt ?? appShell.activeProject.localDirectoryLastCheckedAt ?? '暂无' }}</dd>
+                  <dd>
+                    {{
+                      directoryCheck?.lastCheckedAt ??
+                      appShell.activeProject.localDirectoryLastCheckedAt ??
+                      '暂无'
+                    }}
+                  </dd>
                 </div>
               </dl>
             </section>
@@ -491,7 +505,7 @@ function confirmDeleteProject(): void {
                 <span>.dreamworker/</span>
                 <span>docs/</span>
                 <span>artifacts/explore/ product/ development/ sales/</span>
-                <span>workspace/imports/ exports/ temp/</span>
+                <span>workspace/code/ imports/ exports/ temp/</span>
                 <span>source/repo/</span>
               </div>
             </section>
@@ -502,10 +516,18 @@ function confirmDeleteProject(): void {
                 <strong>当前风险</strong>
               </div>
               <p>{{ directoryCheck?.message ?? '尚未检测本地目录。' }}</p>
-              <p v-if="localDirectoryStatus === 'not_set'">项目只能保存在数据库，文件产物没有落地根目录。</p>
-              <p v-else-if="localDirectoryStatus === 'permission_denied'">目录权限不足，产物导出和开发落地会失败。</p>
-              <p v-else-if="localDirectoryStatus === 'invalid'">目录结构未初始化，工具写入会被项目策略阻断。</p>
-              <p v-else-if="localDirectoryStatus === 'valid'">目录结构完整，可以作为项目产物和后续开发落地边界。</p>
+              <p v-if="localDirectoryStatus === 'not_set'">
+                项目只能保存在数据库，文件产物没有落地根目录。
+              </p>
+              <p v-else-if="localDirectoryStatus === 'permission_denied'">
+                目录权限不足，产物导出和开发落地会失败。
+              </p>
+              <p v-else-if="localDirectoryStatus === 'invalid'">
+                目录结构未初始化，工具写入会被项目策略阻断。
+              </p>
+              <p v-else-if="localDirectoryStatus === 'valid'">
+                目录结构完整，可以作为项目产物和后续开发落地边界。
+              </p>
             </section>
           </div>
         </section>
@@ -534,7 +556,12 @@ function confirmDeleteProject(): void {
           </div>
 
           <section class="resource-pack-row" aria-label="推荐资源包">
-            <button v-for="pack in resourcePacks" :key="pack.id" type="button" @click="applyResourcePack(pack)">
+            <button
+              v-for="pack in resourcePacks"
+              :key="pack.id"
+              type="button"
+              @click="applyResourcePack(pack)"
+            >
               <strong>{{ pack.label }}</strong>
               <span>{{ pack.description }}</span>
             </button>
@@ -599,7 +626,10 @@ function confirmDeleteProject(): void {
           </div>
         </section>
 
-        <section v-else-if="appShell.activeProjectSettingsTab === 'modules'" class="project-tab-panel">
+        <section
+          v-else-if="appShell.activeProjectSettingsTab === 'modules'"
+          class="project-tab-panel"
+        >
           <div class="module-config-grid">
             <section
               v-for="moduleId in projectModuleIds"
@@ -633,16 +663,14 @@ function confirmDeleteProject(): void {
                   默认 Agent
                   <select
                     :value="appShell.projectDraft.moduleConfigs[moduleId].defaultAgentIds[0] ?? ''"
-                    @change="
-                      setFirstModuleResource(
-                        moduleId,
-                        'agent',
-                        eventValue($event)
-                      )
-                    "
+                    @change="setFirstModuleResource(moduleId, 'agent', eventValue($event))"
                   >
                     <option value="">未指定</option>
-                    <option v-for="agent in appShell.agents" :key="agent.agentId" :value="agent.agentId">
+                    <option
+                      v-for="agent in appShell.agents"
+                      :key="agent.agentId"
+                      :value="agent.agentId"
+                    >
                       {{ agent.displayName }}
                     </option>
                   </select>
@@ -651,16 +679,14 @@ function confirmDeleteProject(): void {
                   默认 Skill
                   <select
                     :value="appShell.projectDraft.moduleConfigs[moduleId].enabledSkillIds[0] ?? ''"
-                    @change="
-                      setFirstModuleResource(
-                        moduleId,
-                        'skill',
-                        eventValue($event)
-                      )
-                    "
+                    @change="setFirstModuleResource(moduleId, 'skill', eventValue($event))"
                   >
                     <option value="">未指定</option>
-                    <option v-for="skill in appShell.skills" :key="skill.skillId" :value="skill.skillId">
+                    <option
+                      v-for="skill in appShell.skills"
+                      :key="skill.skillId"
+                      :value="skill.skillId"
+                    >
                       {{ skill.displayName }}
                     </option>
                   </select>
@@ -669,13 +695,7 @@ function confirmDeleteProject(): void {
                   默认 Tool
                   <select
                     :value="appShell.projectDraft.moduleConfigs[moduleId].enabledToolIds[0] ?? ''"
-                    @change="
-                      setFirstModuleResource(
-                        moduleId,
-                        'tool',
-                        eventValue($event)
-                      )
-                    "
+                    @change="setFirstModuleResource(moduleId, 'tool', eventValue($event))"
                   >
                     <option value="">未指定</option>
                     <option v-for="tool in appShell.tools" :key="tool.toolId" :value="tool.toolId">
@@ -686,14 +706,10 @@ function confirmDeleteProject(): void {
                 <label>
                   MCP
                   <select
-                    :value="appShell.projectDraft.moduleConfigs[moduleId].enabledMcpServerIds[0] ?? ''"
-                    @change="
-                      setFirstModuleResource(
-                        moduleId,
-                        'mcp',
-                        eventValue($event)
-                      )
+                    :value="
+                      appShell.projectDraft.moduleConfigs[moduleId].enabledMcpServerIds[0] ?? ''
                     "
+                    @change="setFirstModuleResource(moduleId, 'mcp', eventValue($event))"
                   >
                     <option value="">未指定</option>
                     <option
@@ -716,9 +732,9 @@ function confirmDeleteProject(): void {
                   :key="server.serverId"
                   type="button"
                   :class="{
-                    active: appShell.projectDraft.moduleConfigs[moduleId].enabledMcpServerIds.includes(
-                      server.serverId
-                    )
+                    active: appShell.projectDraft.moduleConfigs[
+                      moduleId
+                    ].enabledMcpServerIds.includes(server.serverId)
                   }"
                   @click="toggleModuleMcp(moduleId, server.serverId)"
                 >
@@ -758,7 +774,11 @@ function confirmDeleteProject(): void {
                 </label>
                 <label>
                   最大运行分钟
-                  <input v-model.number="appShell.projectDraft.runPolicy.maxRunMinutes" type="number" min="1" />
+                  <input
+                    v-model.number="appShell.projectDraft.runPolicy.maxRunMinutes"
+                    type="number"
+                    min="1"
+                  />
                 </label>
                 <label>
                   最大成本 USD
@@ -785,15 +805,24 @@ function confirmDeleteProject(): void {
                 <strong>上下文与记忆</strong>
               </div>
               <label class="check-row">
-                <input v-model="appShell.projectDraft.memoryConfig.projectMemoryEnabled" type="checkbox" />
+                <input
+                  v-model="appShell.projectDraft.memoryConfig.projectMemoryEnabled"
+                  type="checkbox"
+                />
                 启用项目记忆
               </label>
               <label class="check-row">
-                <input v-model="appShell.projectDraft.memoryConfig.artifactIndexEnabled" type="checkbox" />
+                <input
+                  v-model="appShell.projectDraft.memoryConfig.artifactIndexEnabled"
+                  type="checkbox"
+                />
                 启用产物索引
               </label>
               <label class="check-row">
-                <input v-model="appShell.projectDraft.memoryConfig.localFileIndexEnabled" type="checkbox" />
+                <input
+                  v-model="appShell.projectDraft.memoryConfig.localFileIndexEnabled"
+                  type="checkbox"
+                />
                 启用本地文件索引
               </label>
               <label>
@@ -825,19 +854,31 @@ function confirmDeleteProject(): void {
                 </select>
               </label>
               <label class="check-row">
-                <input v-model="appShell.projectDraft.securityPolicy.allowWriteArtifacts" type="checkbox" />
+                <input
+                  v-model="appShell.projectDraft.securityPolicy.allowWriteArtifacts"
+                  type="checkbox"
+                />
                 允许写入 artifacts
               </label>
               <label class="check-row">
-                <input v-model="appShell.projectDraft.securityPolicy.allowWriteSource" type="checkbox" />
+                <input
+                  v-model="appShell.projectDraft.securityPolicy.allowWriteSource"
+                  type="checkbox"
+                />
                 允许写入 source
               </label>
               <label class="check-row">
-                <input v-model="appShell.projectDraft.securityPolicy.allowShellExecution" type="checkbox" />
+                <input
+                  v-model="appShell.projectDraft.securityPolicy.allowShellExecution"
+                  type="checkbox"
+                />
                 允许 shell/code execution
               </label>
               <label class="check-row">
-                <input v-model="appShell.projectDraft.securityPolicy.allowNetworkTools" type="checkbox" />
+                <input
+                  v-model="appShell.projectDraft.securityPolicy.allowNetworkTools"
+                  type="checkbox"
+                />
                 允许网络工具
               </label>
             </section>
@@ -847,7 +888,11 @@ function confirmDeleteProject(): void {
                 <Download :size="17" aria-hidden="true" />
                 <strong>导出与危险操作</strong>
               </div>
-              <button class="primary-button" type="button" @click="appShell.exportActiveProjectManifest()">
+              <button
+                class="primary-button"
+                type="button"
+                @click="appShell.exportActiveProjectManifest()"
+              >
                 <Download :size="15" aria-hidden="true" />
                 导出项目 manifest
               </button>

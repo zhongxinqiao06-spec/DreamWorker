@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import CodingAgentWorkspace from './CodingAgentWorkspace.vue'
+import ExploreSubmoduleWorkspace from './ExploreSubmoduleWorkspace.vue'
 import ModuleInspector from './ModuleInspector.vue'
 import ProjectContextPanel from './ProjectContextPanel.vue'
 import RequirementAnalysisWorkspace from './RequirementAnalysisWorkspace.vue'
@@ -12,6 +13,7 @@ const appShell = useAppShellStore()
 
 const moduleId = computed(() => appShell.activeModuleWorkspace)
 const module = computed(() => appShell.activeModule)
+const exploreSubmoduleOpen = computed(() => appShell.activeSubmoduleDetail?.moduleId === 'explore')
 const requirementAnalysisOpen = computed(
   () =>
     appShell.activeSubmoduleDetail?.moduleId === 'product' &&
@@ -25,7 +27,8 @@ const codingAgentOpen = computed(
 </script>
 
 <template>
-  <RequirementAnalysisWorkspace v-if="requirementAnalysisOpen" />
+  <ExploreSubmoduleWorkspace v-if="exploreSubmoduleOpen" />
+  <RequirementAnalysisWorkspace v-else-if="requirementAnalysisOpen" />
   <CodingAgentWorkspace v-else-if="codingAgentOpen" />
   <section v-else class="workspace-layout module-workspace-layout">
     <ProjectContextPanel />

@@ -54,7 +54,7 @@ function stateText(value: string | undefined): string {
         <span>9Router 拓展诊断</span>
       </div>
       <p>
-        这里展示 Go Engine 管理的拓展状态。诊断摘要只展示脱敏信息，不包含 API Key、Engine token
+        这里展示 Main Runtime 管理的拓展状态。诊断摘要只展示脱敏信息，不包含 API Key、Runtime token
         或完整环境变量。
       </p>
       <dl>

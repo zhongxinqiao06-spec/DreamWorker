@@ -117,11 +117,7 @@ export function createDefaultProjectModuleConfigs(): ProjectModuleConfigs {
     }),
     product: createDefaultProjectModuleConfig({
       outputDir: 'artifacts/product',
-      defaultAgentIds: [
-        'agent_product_designer',
-        'agent_prototype_designer',
-        'agent_evaluator'
-      ],
+      defaultAgentIds: ['agent_product_designer', 'agent_prototype_designer', 'agent_evaluator'],
       enabledSkillIds: ['skill_prd_draft'],
       enabledToolIds: ['tool_model_generate_stub', 'tool_artifact_write'],
       parameters: { stage: 'Shape', requiresDecisionGate: true }

@@ -1,6 +1,8 @@
 # DreamWorker Specs
 
-`specs/` 是 DreamWorker 跨进程、跨运行时契约的事实源。当前 schema 版本统一为 `0.1`，用于 Go Engine、Electron typed API、fixtures、contract tests 和后续 SDK/conformance。
+`specs/` 是 DreamWorker 跨进程、跨运行时契约的事实源。当前 schema 版本统一为 `0.1`，用于 Main Runtime、Electron typed API、fixtures、contract tests 和后续 SDK/conformance。
+
+Electron Main 内嵌 Runtime 是当前唯一 Runtime 实现，生成产物只输出 TypeScript contracts。Go 侧 contracts 与测试已经退出主链路，新增能力必须先落到 Main Runtime 和 typed preload API。
 
 ## 当前覆盖
 
@@ -20,7 +22,6 @@
 `npm run specs:generate` 从 JSON Schema 生成：
 
 - `apps/desktop/shared/generated/contracts.ts`：TypeScript contracts，供 Electron shared/renderer/preload/main 使用。
-- `engine/internal/contracts/generated/contracts.go`：Go runtime contract subset，当前覆盖 RuntimePing、error、event 和 artifact metadata 等 Engine 基础契约。
 
 生成产物不得手写；schema 变更必须同步 fixtures、generated contracts 和 tests。
 
@@ -81,6 +82,7 @@ npm run specs:check
 ## 边界
 
 - `specs/` 描述稳定契约，不写 UI 文案、不写 provider 私有 payload、不保存密钥。
-- Provider 原始流式事件必须在 Engine 内归一化为 DreamWorker typed stream event 后再进入 UI。
+- Provider、Chat、Coding Agent 原始流式事件必须在 Main Runtime 内归一化为 DreamWorker typed stream event 后再进入 UI。
+- OpenCode server/session/message/diff 事件属于 Runtime 私有细节，不直接写进公共 schema；公共层只接收归一化后的 started、delta、tool_call、shell_output、file_changed、completed、cancelled、error 等事件。
 - MCP、Tool、Skill 的高风险动作必须能通过 policy/approval 契约表达。
 - 后续 SDK、examples、conformance 都应从本目录读取契约，而不是复制 Renderer 或 Engine 私有类型。

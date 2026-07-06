@@ -280,7 +280,7 @@ async function copyProviderApiKey(): Promise<void> {
       <div>
         <p class="eyebrow">资源配置中心</p>
         <h2>模型、Agent、Skill、工具和 MCP</h2>
-        <p>统一管理工作台资源。密钥只进入 Go Engine，前端仅展示脱敏值。</p>
+        <p>统一管理工作台资源。密钥只进入 Main Runtime，前端仅展示脱敏值。</p>
       </div>
       <strong>{{ appShell.resourceSummary }}</strong>
     </header>

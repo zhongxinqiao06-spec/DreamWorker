@@ -80,7 +80,11 @@ const pipelineSteps = computed<PipelineStep[]>(() => {
       phase: 'PARSE',
       title: 'MinerU 解析文件',
       detail: '对选中的 Word/PDF 提取版面、文本和结构',
-      status: completed ? 'completed' : running && selectedImportedFiles.value > 0 ? 'running' : 'ready'
+      status: completed
+        ? 'completed'
+        : running && selectedImportedFiles.value > 0
+          ? 'running'
+          : 'ready'
     },
     {
       phase: 'ANALYZE',
@@ -191,7 +195,11 @@ function stepText(status: PipelineStep['status']): string {
             <RefreshCw :size="15" aria-hidden="true" />
             刷新
           </button>
-          <button type="button" title="导入 Word 或 PDF 需求文件" @click="appShell.importRequirementFiles()">
+          <button
+            type="button"
+            title="导入 Word 或 PDF 需求文件"
+            @click="appShell.importRequirementFiles()"
+          >
             <Upload :size="15" aria-hidden="true" />
             导入
           </button>
@@ -243,7 +251,10 @@ function stepText(status: PipelineStep['status']): string {
             placeholder="补充本轮需求分析的偏好、约束或重点，例如优先首版、拆分后台管理、保留合规要求。"
             aria-label="需求分析补充要求"
           />
-          <div v-if="appShell.requirementSources.length" class="source-toggle-grid requirement-source-grid">
+          <div
+            v-if="appShell.requirementSources.length"
+            class="source-toggle-grid requirement-source-grid"
+          >
             <button
               v-for="source in appShell.requirementSources"
               :key="source.sourceId"
@@ -349,7 +360,13 @@ function stepText(status: PipelineStep['status']): string {
               </div>
             </div>
             <div v-if="outputFiles.length" class="artifact-slot-list requirement-output-list">
-              <button v-for="file in outputFiles" :key="file.relativePath" type="button">
+              <button
+                v-for="file in outputFiles"
+                :key="file.relativePath"
+                type="button"
+                title="打开交付文件"
+                @click="appShell.openRequirementOutputFile(file.absolutePath)"
+              >
                 <FileText :size="15" aria-hidden="true" />
                 <span>{{ outputKindLabel(file.kind) }}</span>
                 <small>{{ file.relativePath }}</small>
@@ -424,7 +441,10 @@ function stepText(status: PipelineStep['status']): string {
             <h3>文档解析</h3>
           </div>
         </div>
-        <p>选中 Word/PDF 时优先调用本地 MinerU CLI；系统未安装时自动使用官方 Go SDK 的 Open API。纯项目描述或探索产物可直接分析。</p>
+        <p>
+          选中 Word/PDF 时优先调用本地 MinerU CLI；系统未安装时自动使用官方 Open
+          API。纯项目描述或探索产物可直接分析。
+        </p>
       </section>
 
       <section class="inspector-card">
@@ -449,7 +469,11 @@ function stepText(status: PipelineStep['status']): string {
       <section class="inspector-card">
         <p class="eyebrow">Next Action</p>
         <h3>{{ submodule.nextBestAction }}</h3>
-        <button type="button" class="full-width-button" @click="appShell.openActiveProjectDirectory()">
+        <button
+          type="button"
+          class="full-width-button"
+          @click="appShell.openActiveProjectDirectory()"
+        >
           <FolderOpen :size="15" aria-hidden="true" />
           打开项目目录
         </button>
@@ -457,4 +481,3 @@ function stepText(status: PipelineStep['status']): string {
     </aside>
   </section>
 </template>
-

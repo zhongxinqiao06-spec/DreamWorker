@@ -100,12 +100,7 @@ type ResourceNotice = {
 }
 
 export type ProjectSettingsTabId =
-  | 'basic'
-  | 'directory'
-  | 'resources'
-  | 'modules'
-  | 'run-policy'
-  | 'security'
+  'basic' | 'directory' | 'resources' | 'modules' | 'run-policy' | 'security'
 
 export type ProjectResourceType = 'agents' | 'skills' | 'tools' | 'mcp'
 
@@ -383,7 +378,7 @@ function toRuntimePingState(response: RuntimePingResponse): RuntimePingState {
     return {
       status: 'ready',
       headline: '引擎已连接',
-      detail: `Go Engine ${response.engineVersion} 已响应。`,
+      detail: `Main Runtime ${response.engineVersion} 已响应。`,
       traceId: response.trace_id,
       errorCode: '暂无'
     }
@@ -955,7 +950,9 @@ export const useAppShellStore = defineStore('app-shell', {
       const activeProject =
         state.projects.find((project) => project.projectId === state.activeProjectId) ??
         state.projects[0]
-      return JSON.stringify(createProjectDraft(activeProject)) !== JSON.stringify(state.projectDraft)
+      return (
+        JSON.stringify(createProjectDraft(activeProject)) !== JSON.stringify(state.projectDraft)
+      )
     },
     activeWorkspaceTitle: (state): string => {
       if (state.activePrimary === 'home') {
@@ -1664,7 +1661,9 @@ export const useAppShellStore = defineStore('app-shell', {
         return
       }
       try {
-        const result = await window.dreamworker.projects.listRequirementSources(this.activeProjectId)
+        const result = await window.dreamworker.projects.listRequirementSources(
+          this.activeProjectId
+        )
         this.requirementSources = [...result.sources]
         const validIds = new Set(this.requirementSources.map((source) => source.sourceId))
         const selected = this.selectedRequirementSourceIds.filter((sourceId) =>
@@ -1732,7 +1731,9 @@ export const useAppShellStore = defineStore('app-shell', {
       }
       try {
         this.showResourceNotice('正在导入需求文件...', 'info')
-        const result = await window.dreamworker.projects.importRequirementFiles(this.activeProjectId)
+        const result = await window.dreamworker.projects.importRequirementFiles(
+          this.activeProjectId
+        )
         if (!result) {
           return
         }
@@ -1786,6 +1787,18 @@ export const useAppShellStore = defineStore('app-shell', {
         this.requirementAnalysisLoading = false
       }
     },
+    async openRequirementOutputFile(absolutePath: string): Promise<void> {
+      if (!absolutePath) {
+        this.showResourceNotice('产物文件路径为空', 'error')
+        return
+      }
+      try {
+        const result = await window.dreamworker.projects.openRequirementOutputFile(absolutePath)
+        this.showResourceNotice(result.message, result.ok ? 'success' : 'error')
+      } catch (error) {
+        this.showResourceFailure(error, '产物文件打开失败')
+      }
+    },
     ensureActiveSubmodule(moduleId: ModuleWorkspaceId): void {
       const module = this.projectModules.find((item) => item.moduleId === moduleId)
       if (!module?.submodules.length) {
@@ -1811,6 +1824,7 @@ export const useAppShellStore = defineStore('app-shell', {
     enterSubmodule(moduleId: ModuleWorkspaceId, submoduleId: string): void {
       this.selectSubmodule(moduleId, submoduleId)
       if (
+        moduleId === 'explore' ||
         (moduleId === 'product' && submoduleId === 'requirement_analysis') ||
         (moduleId === 'development' && submoduleId === 'coding_agent')
       ) {
@@ -1821,6 +1835,34 @@ export const useAppShellStore = defineStore('app-shell', {
     },
     leaveSubmoduleDetail(): void {
       this.activeSubmoduleDetail = null
+    },
+    async updateProjectModuleConfig(
+      moduleId: ModuleWorkspaceId,
+      config: ProjectModule['config']
+    ): Promise<void> {
+      if (!this.activeProjectId) {
+        this.showResourceNotice('请先选择项目', 'error')
+        return
+      }
+      try {
+        this.showResourceNotice('正在保存模块配置...', 'info')
+        const updatedModule = await window.dreamworker.projects.updateProjectModuleConfig({
+          projectId: this.activeProjectId,
+          moduleId,
+          config
+        })
+        this.projectModules = this.projectModules.map((item) =>
+          item.moduleId === updatedModule.moduleId ? updatedModule : item
+        )
+        if (!this.projectModules.some((item) => item.moduleId === updatedModule.moduleId)) {
+          this.projectModules.push(updatedModule)
+        }
+        this.ensureActiveSubmodule(moduleId)
+        this.showResourceNotice('模块配置已保存')
+      } catch (error) {
+        this.showResourceFailure(error, '模块配置保存失败')
+        throw error
+      }
     },
     async createProject(): Promise<void> {
       const project = await window.dreamworker.projects.createProject({

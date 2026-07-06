@@ -67,6 +67,7 @@ export const CHANNELS = {
   projectsListRequirementSources: 'projects:listRequirementSources',
   projectsPreviewRequirementSource: 'projects:previewRequirementSource',
   projectsRunRequirementAnalysis: 'projects:runRequirementAnalysis',
+  projectsOpenRequirementOutputFile: 'projects:openRequirementOutputFile',
   chatListSessions: 'chat:listSessions',
   chatCreateSession: 'chat:createSession',
   chatUpdateSession: 'chat:updateSession',
@@ -941,6 +942,16 @@ export type CodingRuntimeStatus = {
   readonly available: boolean
   readonly message: string
   readonly engines: readonly CodingEngineDescriptor[]
+  readonly engineStatuses: readonly CodingRuntimeEngineStatus[]
+}
+
+export type CodingRuntimeEngineStatus = {
+  readonly engineId: CodingEngineId
+  readonly packageName: string
+  readonly installed: boolean
+  readonly executable: boolean
+  readonly status: 'missing' | 'checking' | 'ready' | 'running' | 'error' | string
+  readonly message: string
 }
 
 export type CreateCodingSessionInput = {
@@ -1078,6 +1089,12 @@ export type OpenExternalResult = {
   readonly message: string | null
 }
 
+export type OpenLocalFileResult = {
+  readonly ok: boolean
+  readonly path: string
+  readonly message: string
+}
+
 export type DreamWorkerApi = {
   readonly runtime: {
     readonly ping: () => Promise<RuntimePingResponse>
@@ -1171,6 +1188,7 @@ export type DreamWorkerApi = {
     readonly runRequirementAnalysis: (
       input: RunRequirementAnalysisInput
     ) => Promise<RequirementAnalysisRun>
+    readonly openRequirementOutputFile: (absolutePath: string) => Promise<OpenLocalFileResult>
   }
   readonly chat: {
     readonly listSessions: () => Promise<readonly ChatSession[]>
@@ -1207,9 +1225,9 @@ export function createEngineNotConnectedResponse(traceId: string): RuntimePingRe
     trace_id: traceId,
     error: {
       code: 'ENGINE_NOT_CONNECTED',
-      message: 'Go Engine 尚未连接，后续阶段会接入本地引擎。',
+      message: 'Main Runtime 尚未连接。',
       recoverable: true,
-      user_action: '等待引擎接入后重试。',
+      user_action: '等待本地 Runtime 启动后重试。',
       trace_id: traceId
     }
   }

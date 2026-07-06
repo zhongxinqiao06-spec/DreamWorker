@@ -178,7 +178,10 @@ const pipelineCards = computed(() => [
   {
     title: '运行时',
     value: appShell.runtimePing.headline,
-    hint: appShell.runtimePing.errorCode === '暂无' ? 'typed preload 已就绪' : appShell.runtimePing.errorCode,
+    hint:
+      appShell.runtimePing.errorCode === '暂无'
+        ? 'typed preload 已就绪'
+        : appShell.runtimePing.errorCode,
     icon: ShieldCheck
   },
   {
@@ -535,7 +538,12 @@ async function downloadWindowsPreview(): Promise<void> {
     </section>
 
     <section class="home-metric-grid" aria-label="首页指标">
-      <article v-for="card in metricCards" :key="card.label" class="home-metric-card" :data-tone="card.tone">
+      <article
+        v-for="card in metricCards"
+        :key="card.label"
+        class="home-metric-card"
+        :data-tone="card.tone"
+      >
         <span>{{ card.label }}</span>
         <strong>{{ card.value.toLocaleString() }}</strong>
         <small>{{ card.detail }}</small>
@@ -550,7 +558,12 @@ async function downloadWindowsPreview(): Promise<void> {
               <p class="eyebrow">项目指引</p>
               <h2>今天从哪一步开始</h2>
             </div>
-            <button class="icon-button" type="button" title="打开聊天工作台" @click="openPrimary('chat')">
+            <button
+              class="icon-button"
+              type="button"
+              title="打开聊天工作台"
+              @click="openPrimary('chat')"
+            >
               <MessageSquareText :size="18" aria-hidden="true" />
             </button>
           </div>
@@ -594,7 +607,12 @@ async function downloadWindowsPreview(): Promise<void> {
                 <span>能力占比</span>
                 <small>编排资源</small>
               </div>
-              <div ref="capabilityChartRef" class="home-echart home-echart-donut" role="img" aria-label="能力编排占比图" />
+              <div
+                ref="capabilityChartRef"
+                class="home-echart home-echart-donut"
+                role="img"
+                aria-label="能力编排占比图"
+              />
             </div>
           </div>
 
@@ -609,7 +627,12 @@ async function downloadWindowsPreview(): Promise<void> {
 
           <div class="home-next-action">
             <CheckCircle2 :size="18" aria-hidden="true" />
-            <p>{{ appShell.activeModule?.nextBestAction || '选择一个项目模块，DreamWorker 会给出下一步动作。' }}</p>
+            <p>
+              {{
+                appShell.activeModule?.nextBestAction ||
+                '选择一个项目模块，DreamWorker 会给出下一步动作。'
+              }}
+            </p>
             <button type="button" @click="openPrimary(appShell.activeModuleWorkspace ?? 'explore')">
               去执行
             </button>
@@ -624,7 +647,12 @@ async function downloadWindowsPreview(): Promise<void> {
               <p class="eyebrow">运行管线</p>
               <h2>项目和上下文状态</h2>
             </div>
-            <button class="icon-button" type="button" title="检查引擎" @click="appShell.checkRuntimePing()">
+            <button
+              class="icon-button"
+              type="button"
+              title="检查引擎"
+              @click="appShell.checkRuntimePing()"
+            >
               <ShieldCheck :size="18" aria-hidden="true" />
             </button>
           </div>
@@ -647,8 +675,9 @@ async function downloadWindowsPreview(): Promise<void> {
             </div>
             <progress :value="contextUsedPercent" max="100" aria-label="上下文 token 使用率" />
             <p>
-              本轮会话累计 {{ totalUsage.totalTokens.toLocaleString() }} tokens，估算成本
-              ${{ totalUsage.costUsd.toFixed(4) }}。
+              本轮会话累计 {{ totalUsage.totalTokens.toLocaleString() }} tokens，估算成本 ${{
+                totalUsage.costUsd.toFixed(4)
+              }}。
             </p>
           </div>
 
@@ -680,14 +709,21 @@ async function downloadWindowsPreview(): Promise<void> {
               <span>模型分布</span>
               <small>服务商模型数</small>
             </div>
-            <div ref="providerChartRef" class="home-echart home-echart-bars" role="img" aria-label="服务商模型数量图" />
+            <div
+              ref="providerChartRef"
+              class="home-echart home-echart-bars"
+              role="img"
+              aria-label="服务商模型数量图"
+            />
           </div>
 
           <div class="home-provider-list">
             <article v-for="provider in enabledProviders.slice(0, 5)" :key="provider.providerId">
               <div>
                 <strong>{{ provider.displayName }}</strong>
-                <small>{{ provider.defaultModel || provider.availableModels[0] || '未设置默认模型' }}</small>
+                <small>{{
+                  provider.defaultModel || provider.availableModels[0] || '未设置默认模型'
+                }}</small>
               </div>
               <span :data-status="provider.healthStatus">{{ provider.modelCount }}</span>
             </article>

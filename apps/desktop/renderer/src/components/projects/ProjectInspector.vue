@@ -93,7 +93,9 @@ const disconnectedMcpCount = computed(
         </div>
         <div>
           <dt>结构</dt>
-          <dd>{{ appShell.activeProjectDirectoryCheck?.dreamworkerInitialized ? '完整' : '待初始化' }}</dd>
+          <dd>
+            {{ appShell.activeProjectDirectoryCheck?.dreamworkerInitialized ? '完整' : '待初始化' }}
+          </dd>
         </div>
       </dl>
       <p>{{ appShell.activeProjectDirectoryCheck?.message ?? '目录尚未检测。' }}</p>

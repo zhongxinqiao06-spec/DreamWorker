@@ -24,7 +24,9 @@ const appShell = useAppShellStore()
         @click="appShell.selectProject(project.projectId)"
       >
         <strong>{{ project.title }}</strong>
-        <span>{{ project.status }} / {{ project.localDirectoryStatus }} / {{ project.projectId }}</span>
+        <span
+          >{{ project.status }} / {{ project.localDirectoryStatus }} / {{ project.projectId }}</span
+        >
       </button>
     </div>
 

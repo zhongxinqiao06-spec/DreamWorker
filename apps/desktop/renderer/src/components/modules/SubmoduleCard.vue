@@ -14,9 +14,20 @@ const emit = defineEmits<{
   readonly enter: [submoduleId: string]
 }>()
 
+const exploreDetailSubmodules = new Set([
+  'opportunity_radar',
+  'user_persona',
+  'competitor_map',
+  'evidence_graph'
+])
+
 const isCodingAgent = computed(() => props.submodule.submoduleId === 'coding_agent')
 const canEnterDetail = computed(
-  () => props.submodule.submoduleId === 'requirement_analysis' || isCodingAgent.value
+  () =>
+    (props.submodule.moduleId === 'explore' &&
+      exploreDetailSubmodules.has(props.submodule.submoduleId)) ||
+    props.submodule.submoduleId === 'requirement_analysis' ||
+    isCodingAgent.value
 )
 
 function openSubmodule(): void {
