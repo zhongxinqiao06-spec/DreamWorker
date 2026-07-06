@@ -1,5 +1,9 @@
 import type { WorkspaceStore } from '../../store/workspace-store'
 import type { CodingSession, CodingStreamEvent, DeleteResult, JsonRecord } from '../../types'
+import { ProviderService } from '../models/provider-service'
+import { ProjectDirectoryService } from '../projects/project-directory-service'
+import { ProviderRepository } from '../../store/repositories/provider-repository'
+import { ProjectRepository } from '../../store/repositories/project-repository'
 import { CodeRootService } from './workspace/code-root-service'
 import { CodeWorkspaceService } from './workspace/code-workspace-service'
 import { FileReadService } from './workspace/file-read-service'
@@ -15,7 +19,11 @@ export class CodingService {
   private readonly files: CodeWorkspaceService
   private readonly streams: CodingStreamService
 
-  constructor(store: WorkspaceStore)
+  constructor(
+    store: WorkspaceStore,
+    providers?: ProviderService,
+    projectDirectory?: ProjectDirectoryService
+  )
   constructor(
     sessions: CodingSessionService,
     engines: CodingEngineRegistry,
@@ -24,11 +32,13 @@ export class CodingService {
   )
   constructor(
     first: WorkspaceStore | CodingSessionService,
-    engines?: CodingEngineRegistry,
-    files?: CodeWorkspaceService,
+    second?: ProviderService | CodingEngineRegistry,
+    third?: ProjectDirectoryService | CodeWorkspaceService,
     streams?: CodingStreamService
   ) {
     if (first instanceof CodingSessionService) {
+      const engines = second instanceof CodingEngineRegistry ? second : undefined
+      const files = third instanceof CodeWorkspaceService ? third : undefined
       if (!engines || !files || !streams) {
         throw new Error('CodingService requires sessions, engines, files and streams')
       }
@@ -40,14 +50,22 @@ export class CodingService {
     }
 
     const store = first
-    const roots = new CodeRootService(store)
+    const providers =
+      second instanceof ProviderService
+        ? second
+        : new ProviderService(new ProviderRepository(store))
+    const projectDirectory =
+      third instanceof ProjectDirectoryService
+        ? third
+        : new ProjectDirectoryService(new ProjectRepository(store))
+    const roots = new CodeRootService(projectDirectory)
     const git = new GitStatusService()
     const tree = new FileTreeService(roots, git)
     const reader = new FileReadService(roots)
-    this.sessions = new CodingSessionService(store)
+    this.sessions = new CodingSessionService(store, providers, projectDirectory)
     this.engines = new CodingEngineRegistry()
     this.files = new CodeWorkspaceService(roots, tree, reader, git)
-    this.streams = new CodingStreamService(store, this.sessions, this.engines)
+    this.streams = new CodingStreamService(store, providers, this.sessions, this.engines)
   }
 
   dispose(): void {

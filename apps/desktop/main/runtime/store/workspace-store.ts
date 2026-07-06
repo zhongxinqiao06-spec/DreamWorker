@@ -9,22 +9,17 @@ import {
   unlinkSync,
   writeFileSync
 } from 'node:fs'
-import { DatabaseSync } from 'node:sqlite'
-import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from 'node:path'
 import {
-  createDefaultSnapshot,
   createProject,
   createProjectModules,
   defaultSettings,
-  ensureSnapshotShape,
   projectDirectoryLayout,
   projectDocumentStubs,
   touch
 } from './defaults'
 import {
   badRequest,
-  internalError,
   notFound,
   type DeleteResult,
   type JsonRecord,
@@ -39,20 +34,20 @@ import {
   nowISO,
   sortedValues
 } from '../shared/util'
-
-const workspaceSnapshotKey = 'workspace'
+import { defaultConfigDir, WorkspaceDb } from './workspace-db'
+import { WorkspaceSnapshotStore } from './workspace-snapshot'
 
 export class WorkspaceStore {
   readonly configDir: string
-  private readonly db: DatabaseSync
+  readonly db: WorkspaceDb
+  private readonly snapshots: WorkspaceSnapshotStore
   snapshot: WorkspaceSnapshot
 
   constructor(configDir = defaultConfigDir()) {
-    this.configDir = configDir
-    mkdirSync(this.configDir, { recursive: true })
-    this.db = new DatabaseSync(join(this.configDir, 'workspace.db'))
-    bootstrapDatabase(this.db)
-    this.snapshot = this.loadSnapshot()
+    this.db = new WorkspaceDb(configDir)
+    this.configDir = this.db.configDir
+    this.snapshots = new WorkspaceSnapshotStore(this.db)
+    this.snapshot = this.snapshots.load()
   }
 
   close(): void {
@@ -65,14 +60,7 @@ export class WorkspaceStore {
   }
 
   save(): void {
-    const payload = JSON.stringify(this.snapshot)
-    this.db
-      .prepare(
-        `INSERT INTO workspace_state (key, payload, updated_at)
-VALUES (?, ?, ?)
-ON CONFLICT(key) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at`
-      )
-      .run(workspaceSnapshotKey, payload, nowISO())
+    this.snapshots.save(this.snapshot)
   }
 
   listProviders(): JsonRecord[] {
@@ -855,27 +843,6 @@ ON CONFLICT(key) DO UPDATE SET payload = excluded.payload, updated_at = excluded
     return resolvedCode
   }
 
-  private loadSnapshot(): WorkspaceSnapshot {
-    const row = this.db
-      .prepare('SELECT payload FROM workspace_state WHERE key = ?')
-      .get(workspaceSnapshotKey) as { payload?: string } | undefined
-    if (!row?.payload) {
-      const seeded = createDefaultSnapshot()
-      this.snapshot = seeded
-      this.save()
-      return seeded
-    }
-    try {
-      return ensureSnapshotShape(JSON.parse(row.payload) as WorkspaceSnapshot)
-    } catch {
-      throw internalError(
-        'WORKSPACE_PERSIST_DECODE_FAILED',
-        'failed to decode workspace state',
-        'check workspace database'
-      )
-    }
-  }
-
   private deleteFromMap(
     map: Record<string, JsonRecord>,
     id: string,
@@ -1027,83 +994,6 @@ ON CONFLICT(key) DO UPDATE SET payload = excluded.payload, updated_at = excluded
     writeFileSync(manifestPath, `${JSON.stringify(this.projectManifest(project), null, 2)}\n`)
     return manifestPath
   }
-}
-
-function bootstrapDatabase(db: DatabaseSync): void {
-  db.exec(`
-CREATE TABLE IF NOT EXISTS schema_migrations (
-  version TEXT PRIMARY KEY,
-  checksum TEXT NOT NULL,
-  applied_at TEXT NOT NULL,
-  non_destructive INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS events (
-  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
-  event_id TEXT NOT NULL UNIQUE,
-  schema_version TEXT NOT NULL,
-  trace_id TEXT NOT NULL,
-  mission_id TEXT NOT NULL,
-  run_id TEXT NOT NULL,
-  actor TEXT NOT NULL,
-  timestamp TEXT NOT NULL,
-  type TEXT NOT NULL,
-  payload TEXT NOT NULL,
-  inserted_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-);
-CREATE INDEX IF NOT EXISTS idx_events_mission_id_sequence ON events (mission_id, sequence);
-CREATE INDEX IF NOT EXISTS idx_events_run_id_sequence ON events (run_id, sequence);
-CREATE INDEX IF NOT EXISTS idx_events_trace_id ON events (trace_id);
-CREATE INDEX IF NOT EXISTS idx_events_type ON events (type);
-CREATE TABLE IF NOT EXISTS artifacts (
-  artifact_id TEXT NOT NULL,
-  version INTEGER NOT NULL,
-  schema_version TEXT NOT NULL,
-  mission_id TEXT NOT NULL,
-  run_id TEXT,
-  kind TEXT NOT NULL,
-  title TEXT NOT NULL,
-  uri TEXT NOT NULL,
-  content_type TEXT,
-  path TEXT NOT NULL,
-  trace_id TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  PRIMARY KEY (artifact_id, version)
-);
-CREATE INDEX IF NOT EXISTS idx_artifacts_mission_id ON artifacts (mission_id);
-CREATE INDEX IF NOT EXISTS idx_artifacts_run_id ON artifacts (run_id);
-CREATE TABLE IF NOT EXISTS capabilities (
-  capability_id TEXT PRIMARY KEY,
-  manifest TEXT NOT NULL,
-  lifecycle TEXT NOT NULL,
-  trust_level TEXT NOT NULL,
-  risk_level TEXT NOT NULL,
-  risk_actions TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  last_transition TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_capabilities_lifecycle ON capabilities (lifecycle);
-CREATE INDEX IF NOT EXISTS idx_capabilities_trust_level ON capabilities (trust_level);
-CREATE TABLE IF NOT EXISTS workspace_state (
-  key TEXT PRIMARY KEY,
-  payload TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
-`)
-}
-
-export function defaultConfigDir(): string {
-  const configured = process.env.DREAMWORKER_CONFIG_DIR?.trim()
-  if (configured) {
-    return resolve(configured)
-  }
-  if (process.platform === 'win32') {
-    return join(process.env.APPDATA || join(homedir(), 'AppData', 'Roaming'), 'DreamWorker')
-  }
-  if (process.platform === 'darwin') {
-    return join(homedir(), 'Library', 'Application Support', 'DreamWorker')
-  }
-  return join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'DreamWorker')
 }
 
 function directoryReadable(path: string): boolean {

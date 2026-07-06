@@ -3,6 +3,7 @@ import { badRequest } from '../../kernel/errors'
 import { asString, newTraceId, nowISO, redactSecrets } from '../../shared/util'
 import type { CodingStreamEvent, DeleteResult, JsonRecord } from '../../types'
 import type { WorkspaceStore } from '../../store/workspace-store'
+import type { ProviderService } from '../models/provider-service'
 import type { CodingEngineRegistry } from './engines/engine-registry'
 import type { CodingEventInput } from './engines/coding-engine'
 import type { CodingSessionService } from './coding-session-service'
@@ -12,6 +13,7 @@ export class CodingStreamService {
 
   constructor(
     private readonly store: WorkspaceStore,
+    private readonly providers: ProviderService,
     private readonly sessions: CodingSessionService,
     private readonly engines: CodingEngineRegistry
   ) {}
@@ -34,7 +36,7 @@ export class CodingStreamService {
       )
     }
     const session = this.sessions.resolveForTurn(input)
-    const provider = this.store.providerForCoding(session.providerId, session.model)
+    const provider = this.providers.providerForCoding(session.providerId, session.model)
     const streamId = asString(input.streamId) || this.store.nextId('coding_stream')
     const traceId = newTraceId()
     const abort = this.cancellations.start(streamId)

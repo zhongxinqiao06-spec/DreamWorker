@@ -29,7 +29,7 @@
 
 生产应用不再携带独立 Runtime 包。Main Runtime 随 `apps/desktop/main/runtime` 编译进 Electron Main，桌面进程直接调用 Node/TypeScript 服务对象，不经过 Go Engine 或本机 HTTP。
 
-Runtime 目录按 `bootstrap`、`router`、`kernel`、`services`、`store` 分层：装配、路由、生命周期/取消/追踪、业务能力和 SQLite snapshot 持久化分别演进。
+Runtime 目录按 `bootstrap`、`router`、`kernel`、`services`、`store/repositories` 分层：装配、路由、生命周期/取消/追踪、业务能力、领域仓储和 SQLite snapshot 持久化分别演进。Router 只面向 service，service 通过 repository 访问 Workspace snapshot。
 
 安装包重点校验：
 

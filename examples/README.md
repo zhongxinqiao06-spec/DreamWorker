@@ -13,9 +13,9 @@
 ## 计划中的示例
 
 - Provider adapter：OpenAI-compatible 服务商如何接入 ModelGateway，并完成 health check、model discovery、streaming verification。
-- Extension provider bridge：以 9Router 类本地 Node 扩展为例，演示 detect/install/start/stop/logs/provider bridge 的最小闭环。
-- MCP stdio server：最小 `initialize`、`tools/list`、`tools/call` server，并通过 Resource Center 刷新工具。
-- Skill package：生成一个 `.agent/skills/<name>/SKILL.md`，被 Engine 扫描后出现在 Resource Center。
+- Extension provider bridge：以 9Router 类本地 Node 扩展为例，演示 detect/install/start/stop/logs/provider bridge 的完整闭环。
+- MCP stdio server：可执行的 `initialize`、`tools/list`、`tools/call` server，并通过 Resource Center 刷新工具。
+- Skill package：生成一个 `.agent/skills/<name>/SKILL.md`，被 Main Runtime / Agent OS 能力扫描后出现在 Resource Center。
 - Chat stream client：消费 `ChatStreamEvent`，聚合 token delta、usage、completed/failed/cancelled 和 final assistant message。
 - Coding Agent OpenCode smoke：使用本地 fake OpenAI-compatible provider 验证 OpenCode server/session/prompt/event/diff 链路，并断言 DreamWorker 归一化事件。
 - Project incubation flow：从 idea 到 blueprint/artifact/eval 的端到端流程。

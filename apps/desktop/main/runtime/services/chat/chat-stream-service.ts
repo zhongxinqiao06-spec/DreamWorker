@@ -1,10 +1,10 @@
 import type { ChatStreamEvent } from '../../../../shared/dreamworker-api'
 import { asString, newTraceId, nowISO } from '../../shared/util'
 import type { JsonRecord } from '../../types'
-import type { WorkspaceStore } from '../../store/workspace-store'
+import type { ChatService } from './chat-service'
 
 export class ChatStreamService {
-  constructor(private readonly store: WorkspaceStore) {}
+  constructor(private readonly chat: ChatService) {}
 
   async *stream(body: JsonRecord): AsyncGenerator<ChatStreamEvent> {
     const streamId = asString(body.streamId) || `stream_${Date.now()}`
@@ -30,7 +30,7 @@ export class ChatStreamService {
 
     let result: unknown
     try {
-      result = this.store.sendChatMessage({
+      result = this.chat.sendChatMessage({
         ...body,
         content: asString(body.content) || asString(body.prompt)
       })

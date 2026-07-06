@@ -32,7 +32,7 @@ Electron Main 内嵌 Runtime 是当前唯一 Runtime 实现，生成产物只输
 1. 更新对应 `*.schema.json`。
 2. 更新 `specs/fixtures/valid/<name>.json` 与 `specs/fixtures/invalid/<name>.json`。
 3. 运行 `npm run specs:generate`。
-4. 按需要补 `apps/desktop/shared/contracts.test.ts`、Engine contract tests 或 runtime tests。
+4. 按需要补 `apps/desktop/shared/contracts.test.ts`、Main Runtime contract tests 或 runtime tests。
 5. 运行 `npm run specs:check`。
 
 只改文档时不需要重新生成 contracts。

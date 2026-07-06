@@ -3,24 +3,27 @@ import type { RuntimeContext } from '../../bootstrap/runtime-context'
 import { get, post, type RuntimeRoute } from '../route'
 
 export function projectRoutes(context: RuntimeContext): RuntimeRoute[] {
-  const { store } = context
   return [
-    get('/projects', () => store.listProjects()),
-    post('/projects/create', (body) => store.createProject(body)),
-    post('/projects/get', (body) => store.getProject(asString(body.projectId))),
-    post('/projects/update', (body) => store.updateProject(body)),
-    post('/projects/delete', (body) => store.deleteProject(asString(body.projectId))),
+    get('/projects', () => context.projects.listProjects()),
+    post('/projects/create', (body) => context.projects.createProject(body)),
+    post('/projects/get', (body) => context.projects.getProject(asString(body.projectId))),
+    post('/projects/update', (body) => context.projects.updateProject(body)),
+    post('/projects/delete', (body) => context.projects.deleteProject(asString(body.projectId))),
     post('/projects/local-directory/validate', (body) =>
-      store.validateLocalDirectory(asString(body.projectId))
+      context.projectDirectory.validate(asString(body.projectId))
     ),
     post('/projects/local-directory/initialize', (body) =>
-      store.initializeLocalDirectory(asString(body.projectId))
+      context.projectDirectory.initialize(asString(body.projectId))
     ),
     post('/projects/export-manifest', (body) =>
-      store.exportProjectManifest(asString(body.projectId))
+      context.projectDirectory.exportManifest(asString(body.projectId))
     ),
-    post('/projects/modules', (body) => store.listProjectModules(asString(body.projectId))),
-    post('/projects/modules/get', (body) => store.getProjectModule(body)),
-    post('/projects/modules/update-config', (body) => store.updateProjectModuleConfig(body))
+    post('/projects/modules', (body) =>
+      context.projectModules.listProjectModules(asString(body.projectId))
+    ),
+    post('/projects/modules/get', (body) => context.projectModules.getProjectModule(body)),
+    post('/projects/modules/update-config', (body) =>
+      context.projectModules.updateProjectModuleConfig(body)
+    )
   ]
 }

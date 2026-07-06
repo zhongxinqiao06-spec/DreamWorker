@@ -1,9 +1,9 @@
-import type { WorkspaceStore } from '../../../store/workspace-store'
+import type { ProjectDirectoryService } from '../../projects/project-directory-service'
 
 export class CodeRootService {
-  constructor(private readonly store: WorkspaceStore) {}
+  constructor(private readonly projectDirectory: ProjectDirectoryService) {}
 
   resolve(projectId: string): string {
-    return this.store.projectCodeRoot(projectId)
+    return this.projectDirectory.codeRoot(projectId)
   }
 }

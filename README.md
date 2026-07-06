@@ -9,8 +9,9 @@ DreamWorker 是本地优先的 AI OS、Agent Runtime 和项目孵化桌面工作
 - Electron Main 在同一进程内创建 `apps/desktop/main/runtime`，不再启动独立 Runtime 子进程。
 - Renderer 只通过 typed `window.dreamworker.*` preload API 调用能力，不直接访问 token、文件系统或原始 IPC。
 - Main 负责桌面生命周期、内嵌 Runtime、IPC bridge、流式事件转发和本地安全边界。
-- Main Runtime 是 TypeScript/Node 服务层，按 `bootstrap`、`router`、`kernel`、`services`、`store` 拆分，生产路径不再依赖 Go Engine 或本机 HTTP 中转。
+- Main Runtime 是 TypeScript/Node 服务层，按 `bootstrap`、`router`、`kernel`、`services`、`store/repositories` 拆分，生产路径不再依赖 Go Engine 或本机 HTTP 中转。
 - Main Runtime 负责 providers、profiles、settings、extensions、agents、skills、tools、MCP、projects、requirements、chat、coding agents、runtime diagnostics 和本地 SQLite 持久化。
+- Router 只调用 service，service 通过 repository 读写 Workspace snapshot，Store 只保留 SQLite、snapshot shape、迁移兼容和少量 legacy wrapper。
 - 旧 `workspace.db` 继续按 `workspace_state.payload` snapshot 读取，provider、project、chat、module 数据可跨运行时迁移保留。
 - UI 层所有面向用户可见的文字必须使用中文，协议名、字段名和 Provider 名称保留原文。
 
@@ -39,8 +40,8 @@ Main Runtime
   |-- bootstrap: runtime context and assembly
   |-- router: typed request routes and stream routes
   |-- kernel: lifecycle, cancellation, trace and runtime errors
-  |-- services: projects, requirements, chat, coding agents and extensions
-  |-- store: SQLite workspace_state snapshot persistence
+  |-- services: providers, projects, requirements, chat, coding agents and extensions
+  |-- store/repositories: SQLite workspace_state snapshot persistence and domain access
   |-- coding: Claude Agent, Codex and OpenCode SDK runtime
   `-- diagnostics: ping, runtime status and smoke checks
 ```

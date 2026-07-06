@@ -2,12 +2,18 @@ import { badRequest, notFound } from '../../kernel/errors'
 import { asString, nowISO } from '../../shared/util'
 import type { CodingSession, JsonRecord } from '../../types'
 import type { WorkspaceStore } from '../../store/workspace-store'
+import type { ProviderService } from '../models/provider-service'
+import type { ProjectDirectoryService } from '../projects/project-directory-service'
 import { normalizeEngine } from './engines/coding-engine'
 
 export class CodingSessionService {
   private readonly sessions = new Map<string, CodingSession>()
 
-  constructor(private readonly store: WorkspaceStore) {}
+  constructor(
+    private readonly store: WorkspaceStore,
+    private readonly providers: ProviderService,
+    private readonly projectDirectory: ProjectDirectoryService
+  ) {}
 
   create(input: JsonRecord): CodingSession {
     const projectId = asString(input.projectId)
@@ -15,9 +21,12 @@ export class CodingSessionService {
       throw badRequest('BAD_REQUEST', 'missing projectId', 'select a project')
     }
     const engineId = normalizeEngine(asString(input.engineId))
-    const provider = this.store.providerForCoding(asString(input.providerId), asString(input.model))
+    const provider = this.providers.providerForCoding(
+      asString(input.providerId),
+      asString(input.model)
+    )
     const model = asString(input.model) || asString(provider.defaultModel)
-    const codeRoot = this.store.projectCodeRoot(projectId)
+    const codeRoot = this.projectDirectory.codeRoot(projectId)
     const now = nowISO()
     const session: CodingSession = {
       sessionId: this.store.nextId('coding'),
@@ -65,7 +74,7 @@ export class CodingSessionService {
       if (model) {
         session.model = model
       }
-      session.localRootPath = this.store.projectCodeRoot(session.projectId)
+      session.localRootPath = this.projectDirectory.codeRoot(session.projectId)
       this.save(session)
       return session
     }

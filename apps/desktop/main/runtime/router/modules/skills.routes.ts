@@ -3,11 +3,10 @@ import type { RuntimeContext } from '../../bootstrap/runtime-context'
 import { get, post, type RuntimeRoute } from '../route'
 
 export function skillRoutes(context: RuntimeContext): RuntimeRoute[] {
-  const { store } = context
   return [
-    get('/skills', () => store.listSkills()),
-    post('/skills/get', (body) => store.getSkill(asString(body.skillId))),
-    post('/skills/save', (body) => store.saveSkill(body)),
-    post('/skills/delete', (body) => store.deleteSkill(asString(body.skillId)))
+    get('/skills', () => context.skills.listSkills()),
+    post('/skills/get', (body) => context.skills.getSkill(asString(body.skillId))),
+    post('/skills/save', (body) => context.skills.saveSkill(body)),
+    post('/skills/delete', (body) => context.skills.deleteSkill(asString(body.skillId)))
   ]
 }

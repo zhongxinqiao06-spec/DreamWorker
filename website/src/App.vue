@@ -563,8 +563,17 @@ const architectureCards: Array<{
     title: 'Node Main Runtime 本地运行时',
     details: [
       'TypeScript 服务层随桌面主包发布',
-      '按 bootstrap、router、kernel、services、store 分层',
+      '按 bootstrap、router、kernel、services、repositories、store 分层',
       '生产路径不再依赖 Go Engine 或本机 HTTP 中转'
+    ]
+  },
+  {
+    icon: GitBranch,
+    title: 'Service / Repository 边界',
+    details: [
+      'Router 只调用 service，不直接碰 Workspace Store',
+      'Provider、Project、Chat、Agent、Requirement 已拆出领域服务',
+      'Store 专注 SQLite snapshot、迁移兼容和 legacy wrapper'
     ]
   },
   {
@@ -954,8 +963,8 @@ const sourceLinks = [
           <h2>Electron + Vue + Node Main Runtime，兼容生态且本地可控</h2>
           <p>
             前端贴近国内工程习惯，Node Main Runtime 作为 Electron Main 内嵌能力层承担长驻 AI OS
-            运行时，直接调度 router、kernel、services、Workspace Store、Coding Agent 和 SDK
-            能力；生产路径不再依赖 Go Engine、独立 engine 包或本机 HTTP 通信。
+            运行时，直接调度 router、kernel、services、repositories、Workspace Store、Coding Agent
+            和 SDK 能力；生产路径不再依赖 Go Engine、独立 engine 包或本机 HTTP 通信。
           </p>
         </div>
         <div class="architecture-layout">
@@ -970,7 +979,7 @@ const sourceLinks = [
             </div>
             <div class="stack-layer featured">
               <span>AI OS</span>
-              <strong>Node Main Runtime / Router / Kernel / Services / Store</strong>
+              <strong>Node Main Runtime / Router / Kernel / Services / Repositories / Store</strong>
             </div>
             <div class="stack-layer">
               <span>能力层</span>
