@@ -73,13 +73,40 @@ if (files.length === 0) {
   process.exit(0)
 }
 
-const result = spawnSync(
-  'npx',
-  ['prettier', '--check', '--ignore-path', '.prettierignore', ...files],
-  {
-    stdio: 'inherit',
-    shell: process.platform === 'win32'
+for (const batch of batchFiles(files)) {
+  const result = spawnSync(
+    'npx',
+    ['prettier', '--check', '--ignore-path', '.prettierignore', ...batch],
+    {
+      stdio: 'inherit',
+      shell: process.platform === 'win32'
+    }
+  )
+  if ((result.status ?? 1) !== 0) {
+    process.exit(result.status ?? 1)
   }
-)
+}
 
-process.exit(result.status ?? 1)
+process.exit(0)
+
+function batchFiles(paths) {
+  const maxCommandChars = process.platform === 'win32' ? 7000 : 120000
+  const baseLength = 'npx prettier --check --ignore-path .prettierignore '.length
+  const batches = []
+  let batch = []
+  let length = baseLength
+  for (const path of paths) {
+    const nextLength = length + path.length + 3
+    if (batch.length > 0 && nextLength > maxCommandChars) {
+      batches.push(batch)
+      batch = []
+      length = baseLength
+    }
+    batch.push(path)
+    length += path.length + 3
+  }
+  if (batch.length > 0) {
+    batches.push(batch)
+  }
+  return batches
+}
